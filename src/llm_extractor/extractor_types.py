@@ -5,6 +5,7 @@ from pathlib import Path
 from enum import Enum
 
 from .pdf.extractor import pdf_to_text, pdf_to_image
+from .config import get_config
 from llm_extractor.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -18,7 +19,7 @@ class ExtractionConfig(BaseModel):
     Pydantic model to declare the configuration for the extraction process.
     """
 
-    model_name: str
+    model_name: str = get_config("DEFAULT_MODEL")
     temperature: float = 0.0
     max_retries: int = 3
     parallel_requests: int = 1

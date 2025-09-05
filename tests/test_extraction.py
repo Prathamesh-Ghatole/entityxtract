@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from llm_extractor.types import Document
+from llm_extractor.extractor_types import Document
 from llm_extractor.logging_config import setup_logging, get_logger
 
 # Initialize logging for the script

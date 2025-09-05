@@ -1,10 +1,17 @@
-import types
+from . import extractor_types
 
 
-def extract_object(obj: types.ExtractableObjects, config: types.ExtractionConfig):
-    if isinstance(obj, types.TableToExtract):
-        # Extract table-specific information
-        pass
-    elif isinstance(obj, types.ObjectsToExtract):
-        # Extract object-specific information
-        pass
+def extract_object(
+    doc: extractor_types.Document,
+    objects_to_extract: extractor_types.ExtractableObjects,
+    config: extractor_types.ExtractionConfig = extractor_types.ExtractionConfig(),
+):
+    """
+    Extract specified objects from the document using the provided configuration.
+    Args:
+        doc: Document object containing the data to extract from
+        objects_to_extract: The objects (e.g., tables) to extract
+        config: Configuration for the extraction process
+    Returns:
+        Extracted data as a dictionary
+    """
