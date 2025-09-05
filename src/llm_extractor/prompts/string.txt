@@ -1,0 +1,36 @@
+### Primary Instructions
+
+Your task is to extract {{name}} from the provided text. It's just a simple string extraction task.
+Please follow the instructions carefully to find the relevant information, and extract it accurately.
+
+### Instructions
+{{instructions}}
+
+### Example
+{{example}}
+
+### Output Format
+You must only output as a JSON dictionary, with the key "output" and the value being the extracted string.
+
+Make sure the output is a valid JSON object. No additional text, explanations, or thinking.
+
+### Key Instructions
+
+- Extract the table exactly as it appears in the source text, without any modifications, corrections, or assumptions.
+
+- Observe the structure of the table in the image carefully, and make sure only that structure is followed in your output.
+
+- If the user has provided ### UNSTRUCTURED TEXT, leverage it to cross check your extracted data from the image.
+
+- Do not generate any additional text, explanations, or information. Output only the JSON object.
+
+- Maintain the original structure, values, and format from the source text.
+
+- Ensure no hallucinated values are created. The output must be an exact, truthful, and accurate representation of the source table.
+
+- If a table spans multiple pages, you should merge them into a single table.
+
+- If the said table is not present in the source, return an empty json array: []
+
+### UNSTRUCTURED TEXT
+{{text}}

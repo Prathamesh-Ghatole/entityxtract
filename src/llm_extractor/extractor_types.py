@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 import polars as pl
-from typing import Union, List
+from typing import Union, List, Any
 from pathlib import Path
 from enum import Enum
 
@@ -14,6 +14,12 @@ logger = get_logger(__name__)
 BaseModel.model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
+class FileInputMode(Enum):
+    FILE = "file"
+    TEXT = "text"
+    IMAGE = "image"
+
+
 class ExtractionConfig(BaseModel):
     """
     Pydantic model to declare the configuration for the extraction process.
@@ -23,6 +29,10 @@ class ExtractionConfig(BaseModel):
     temperature: float = 0.0
     max_retries: int = 3
     parallel_requests: int = 1
+    file_input_modes: List[FileInputMode] = [FileInputMode.FILE]
+
+
+# === Extractable Objects === #
 
 
 class TableToExtract(BaseModel):
@@ -36,6 +46,43 @@ class TableToExtract(BaseModel):
     required: bool
 
 
+class StringToExtract(BaseModel):
+    """
+    Pydantic model to declare a string to be extracted from a document.
+    """
+
+    name: str
+    example_string: str
+    instructions: str
+    required: bool
+
+
+# === End of Extractable Objects === #
+
+ExtractableObjectTypes = Union[TableToExtract, StringToExtract]
+
+
+class ExtractionResult(BaseModel):
+    """
+    Pydantic model to hold the results of the extraction process.
+    """
+
+    extracted_data: Any
+    response_raw: Any
+    success: bool
+    message: str
+
+
+class ExtractionResults(BaseModel):
+    """
+    Pydantic model to hold a collection of extraction results.
+    """
+
+    results: dict[ExtractableObjectTypes, ExtractionResult]
+    success: bool
+    message: str | None = None
+
+
 class ObjectsToExtract(BaseModel):
     """
     Pydantic model to declare a collection of objects to be extracted from a document.
@@ -43,9 +90,6 @@ class ObjectsToExtract(BaseModel):
 
     objects: list[TableToExtract]
     config: ExtractionConfig
-
-
-ExtractableObjects = Union[TableToExtract]
 
 
 class DocType(Enum):
