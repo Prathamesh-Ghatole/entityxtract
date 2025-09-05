@@ -12,12 +12,40 @@ from llm_extractor.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def pdf_to_text(file_path: Union[str, Path]) -> str:
+def get_pdf_page_count(file: bytes | Path | str) -> int:
+    """
+    Get the number of pages in a PDF file.
+
+    Args:
+        file: Bytes, Path, or string path of the PDF file
+
+    Returns:
+        Number of pages in the PDF
+    Raises:
+        PDFProcessingError: If there's an error processing the PDF
+    """
+    if isinstance(file, Path) or isinstance(file, str):
+        with open(file, "rb") as f:
+            file = f.read()
+
+    try:
+        doc = pdfium.PdfDocument(file, autoclose=True)
+        page_count = len(doc)
+        doc.close()
+        logger.debug(f"PDF has {page_count} pages")
+        return page_count
+
+    except Exception as e:
+        logger.error(f"Error getting PDF page count: {str(e)}")
+        raise e
+
+
+def pdf_to_text(file: bytes | Path | str) -> str:
     """
     Extract text from a PDF file.
 
     Args:
-        file_path: Path to the PDF file
+        file: Bytes, Path, or string path of the PDF file
 
     Returns:
         Extracted text with page markers
@@ -25,20 +53,17 @@ def pdf_to_text(file_path: Union[str, Path]) -> str:
     Raises:
         PDFProcessingError: If there's an error processing the PDF
     """
-    # Convert string path to Path object if needed
-    if isinstance(file_path, str):
-        file_path = Path(file_path)
-
-    logger.debug(f"Extracting text from PDF: {file_path}")
-
+    if isinstance(file, Path) or isinstance(file, str):
+        with open(file, "rb") as f:
+            file = f.read()
     try:
-        doc = pdfium.PdfDocument(file_path, autoclose=True)
+        doc = pdfium.PdfDocument(file, autoclose=True)
         doc_parsed: Dict[int, str] = {}
 
         try:
             for page_number, page in enumerate(doc):
                 text_page = page.get_textpage()
-                content = text_page.get_text_range()
+                content = text_page.get_text_bounded()
                 text_page.close()
                 page.close()
                 doc_parsed[page_number] = content
@@ -58,19 +83,18 @@ def pdf_to_text(file_path: Union[str, Path]) -> str:
         return full_text
 
     except Exception as e:
-        error_msg = f"Error extracting text from PDF {file_path}: {str(e)}"
-        logger.error(error_msg)
+        logger.error(f"Error extracting text from PDF: {str(e)}")
         raise e
 
 
 def pdf_to_image(
-    file_path: Union[str, Path], scale: int = 4, combine_pages: bool = True
+    file: bytes, scale: int = 4, combine_pages: bool = True
 ) -> Union[Image.Image, List[Image.Image]]:
     """
-    Convert a PDF file to one or more PIL images.
+    Convert a PDF file to a list of PIL images.
 
     Args:
-        file_path: Path to the PDF file
+        file: Bytes of the PDF file
         scale: Rendering scale factor (higher values = higher resolution)
         combine_pages: If True, combine all pages into a single image; if False, return a list of images
 
@@ -80,17 +104,13 @@ def pdf_to_image(
     Raises:
         PDFProcessingError: If there's an error processing the PDF
     """
-    # Convert string path to Path object if needed
-    if isinstance(file_path, str):
-        file_path = Path(file_path)
-
     logger.debug(
-        f"Converting PDF to image(s): {file_path} (scale={scale}, combine={combine_pages})"
+        f"Converting PDF to image(s): (scale={scale}, combine={combine_pages})"
     )
 
     try:
         # Load the PDF document
-        pdf = pdfium.PdfDocument(file_path)
+        pdf = pdfium.PdfDocument(file, autoclose=True)
 
         # Render each page as an image
         images = []
@@ -117,6 +137,5 @@ def pdf_to_image(
         return combined_image
 
     except Exception as e:
-        error_msg = f"Error converting PDF to image {file_path}: {str(e)}"
-        logger.error(error_msg)
+        logger.error(f"Error converting PDF to image: {str(e)}")
         raise e
