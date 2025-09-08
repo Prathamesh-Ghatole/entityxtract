@@ -117,7 +117,6 @@ class Document:
     _image_data: Optional[Union[PILImageType, List[PILImageType]]] = None
     _file_path: Path = Path("")
     _file_type: Optional[DocType] = None
-    _file_type: Optional[DocType] = None
 
     def __init__(self, file_path: str | Path):
         self._file_path = Path(file_path)
@@ -180,7 +179,6 @@ class Document:
     @property
     def image(self) -> Optional[Union[PILImageType, List[PILImageType]]]:
         if self._image_data is not None:
-            return self._image_data
             return self._image_data
 
         if self._file_type == DocType.PDF:

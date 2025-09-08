@@ -2,6 +2,8 @@ import base64
 import json
 import time
 import concurrent.futures
+from typing import Any, Dict, Optional, Tuple
+
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -43,34 +45,22 @@ def pil_img_to_base64(img) -> str:
     if getattr(img, "mode", None) != "RGB":
         img = img.convert("RGB")
 
-    buffered = BytesIO()
+    from io import BytesIO as _BytesIO
+
+    buffered = _BytesIO()
     img.save(buffered, format="JPEG", quality=85)
     img_str = base64.b64encode(buffered.getvalue()).decode()
     return img_str
 
 
-def extract_object(
-    doc: extractor_types.Document,
-    object_to_extract: extractor_types.ExtractableObjectTypes,
-    config: extractor_types.ExtractionConfig,
-) -> extractor_types.ExtractionResult:
-    """
-    Extract specified objects from the document using the provided configuration.
-    Args:
-        doc: Document object containing the data to extract from
-        object_to_extract: The object (e.g., table, string, etc) to extract
-        config: Configuration for the extraction process
-    Returns:
-        Extracted data as an ExtractionResult object
-    """
+# ---------------------------
+# Internal helpers
+# ---------------------------
 
-    SYSTEM_PROMPT = get_system_prompt()
-    PROMPT = get_prompt(object_to_extract)
 
-    model_kwargs = dict()
-    model_kwargs["response_format"] = {"type": "json_object"}
-
-    model = ChatOpenAI(
+def _build_model(config: extractor_types.ExtractionConfig) -> ChatOpenAI:
+    model_kwargs = {"response_format": {"type": "json_object"}}
+    return ChatOpenAI(
         openai_api_key=get_config("OPENAI_API_KEY"),
         openai_api_base=get_config("OPENAI_API_BASE"),
         model_name=config.model_name,
@@ -78,10 +68,19 @@ def extract_object(
         model_kwargs=model_kwargs,
     )
 
-    if extractor_types.FileInputMode.TEXT in config.file_input_modes:
-        PROMPT = PROMPT.replace("{{text}}", f"\n\n{doc.text}")
 
-    # Add Attachments
+def _build_messages(
+    doc: extractor_types.Document,
+    object_to_extract: extractor_types.ExtractableObjectTypes,
+    config: extractor_types.ExtractionConfig,
+):
+    system_prompt = get_system_prompt()
+    prompt = get_prompt(object_to_extract)
+
+    if extractor_types.FileInputMode.TEXT in config.file_input_modes:
+        prompt = prompt.replace("{{text}}", f"\n\n{doc.text}")
+
+    # Add Attachments (keep existing structure as requested)
     attachments = []
     if extractor_types.FileInputMode.IMAGE in config.file_input_modes:
         if doc.image is not None:
@@ -111,32 +110,15 @@ def extract_object(
         )
 
     messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=attachments + [{"type": "text", "text": PROMPT}]),
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=attachments + [{"type": "text", "text": prompt}]),
     ]
+    return messages
 
-    logger.debug(
-        f"Extracting {object_to_extract.name} {type(object_to_extract)}. Config: {config}"
-    )
 
-    # Invoke model
-    try:
-        response = model.invoke(messages)
-        # Serialize response to dict for complete metadata (incl. generation id)
-        try:
-            response_dict = response.dict()
-        except Exception:
-            response_dict = None
-    except Exception as e:
-        logger.error(f"Model invocation failed: {e}")
-        return extractor_types.ExtractionResult(
-            extracted_data=None,
-            response_raw=None,
-            success=False,
-            message=f"Model invocation failed: {e}",
-        )
-
-    # Extract token usage if available
+def _parse_token_usage(
+    response: Any, response_dict: Optional[Dict[str, Any]]
+) -> Tuple[Optional[int], Optional[int], Dict[str, Any], Any]:
     input_tokens = None
     output_tokens = None
     usage_meta = (
@@ -162,14 +144,24 @@ def extract_object(
         output_tokens = (
             output_tokens or tu.get("output_tokens") or tu.get("completion_tokens")
         )
+    return input_tokens, output_tokens, resp_meta, usage_meta
 
-    # Optionally fetch generation stats for cost (OpenRouter)
+
+def _clean_response_content(response: Any) -> str:
+    content = getattr(response, "content", "")
+    if not isinstance(content, str):
+        content = str(content)
+    # Strip potential markdown code fences
+    return content.replace("```json", "").replace("```", "").strip()
+
+
+def _fetch_generation_cost(
+    config: extractor_types.ExtractionConfig, resp_meta: Dict[str, Any]
+) -> Tuple[Optional[float], Optional[Dict[str, Any]]]:
     cost = None
     generation_stats = None
     try:
-        generation_id = None
-        if isinstance(resp_meta, dict):
-            generation_id = resp_meta.get("id")
+        generation_id = resp_meta.get("id") if isinstance(resp_meta, dict) else None
         if config.calculate_costs and generation_id:
             api_base = (
                 get_config("OPENROUTER.API_BASE")
@@ -220,7 +212,6 @@ def extract_object(
                     )
                     break
                 else:
-                    # Loop exhausted without break (shouldn't happen due to break in failures)
                     logger.warning(
                         f"Generation stats request failed: {last_status} {last_text}"
                     )
@@ -236,51 +227,124 @@ def extract_object(
             )
     except Exception as e:
         logger.warning(f"Failed to process generation stats: {e}")
+    return cost, generation_stats
 
-    # Parse JSON content
-    content = getattr(response, "content", "")
-    if not isinstance(content, str):
-        content = str(content)
 
-    # Strip potential markdown code fences
-    content_str = content.replace("```json", "").replace("```", "").strip()
+# ---------------------------
+# Public API
+# ---------------------------
 
-    # Build a serializable raw response payload
-    if isinstance(response_dict, dict):
-        logger.debug(f"Raw chat response dict: {response_dict}")
-        response_raw_payload = dict(response_dict)
-    else:
-        response_raw_payload = {
-            "content": content,
-            "response_metadata": resp_meta,
-            "usage_metadata": usage_meta,
-        }
-    if generation_stats is not None:
-        response_raw_payload["generation_stats"] = generation_stats
 
-    try:
-        response_json = json.loads(content_str)
-        return extractor_types.ExtractionResult(
-            extracted_data=response_json,
-            response_raw=response_raw_payload,
-            success=True,
-            message="Extraction successful",
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            cost=cost,
-        )
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse JSON from model response: {e}")
-        preview = content_str[:200].replace("\n", " ")
-        return extractor_types.ExtractionResult(
-            extracted_data=None,
-            response_raw=response_raw_payload,
-            success=False,
-            message=f"Response was not valid JSON: {e}. Content preview: {preview}",
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            cost=cost,
-        )
+def extract_object(
+    doc: extractor_types.Document,
+    object_to_extract: extractor_types.ExtractableObjectTypes,
+    config: extractor_types.ExtractionConfig,
+) -> extractor_types.ExtractionResult:
+    """
+    Extract specified objects from the document using the provided configuration.
+    Args:
+        doc: Document object containing the data to extract from
+        object_to_extract: The object (e.g., table, string, etc) to extract
+        config: Configuration for the extraction process
+    Returns:
+        Extracted data as an ExtractionResult object
+    """
+
+    logger.debug(
+        f"Extracting {object_to_extract.name} {type(object_to_extract)}. Config: {config}"
+    )
+
+    messages = _build_messages(doc, object_to_extract, config)
+    model = _build_model(config)
+
+    # Retry loop using config.max_retries
+    max_retries = max(1, int(config.max_retries or 1))
+    last_error_msg: Optional[str] = None
+    last_input_tokens: Optional[int] = None
+    last_output_tokens: Optional[int] = None
+    last_response_raw_payload: Optional[Dict[str, Any]] = None
+    last_cost: Optional[float] = None
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = model.invoke(messages)
+            # Serialize response to dict for complete metadata (incl. generation id)
+            try:
+                response_dict = response.dict()
+            except Exception:
+                response_dict = None
+
+            input_tokens, output_tokens, resp_meta, usage_meta = _parse_token_usage(
+                response, response_dict
+            )
+
+            cost, generation_stats = _fetch_generation_cost(config, resp_meta)
+
+            content_str = _clean_response_content(response)
+
+            if isinstance(response_dict, dict):
+                logger.debug(f"Raw chat response dict: {response_dict}")
+                response_raw_payload = dict(response_dict)
+            else:
+                response_raw_payload = {
+                    "content": getattr(response, "content", ""),
+                    "response_metadata": resp_meta,
+                    "usage_metadata": usage_meta,
+                }
+            if generation_stats is not None:
+                response_raw_payload["generation_stats"] = generation_stats
+
+            # Save last-attempt metadata in case of JSON parse failure
+            last_input_tokens = input_tokens
+            last_output_tokens = output_tokens
+            last_response_raw_payload = response_raw_payload
+            last_cost = cost
+
+            response_json = json.loads(content_str)
+            return extractor_types.ExtractionResult(
+                extracted_data=response_json,
+                response_raw=response_raw_payload,
+                success=True,
+                message="Extraction successful",
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost=cost,
+            )
+
+        except json.JSONDecodeError as e:
+            # Content preview for debugging
+            preview = ""
+            try:
+                preview = content_str[:200].replace("\n", " ")
+            except Exception:
+                pass
+            last_error_msg = f"Response was not valid JSON: {e}. Content preview: {preview}"
+            logger.error(
+                f"Failed to parse JSON from model response on attempt {attempt}/{max_retries}: {e}"
+            )
+
+        except Exception as e:
+            last_error_msg = f"Model invocation failed: {e}"
+            logger.error(
+                f"Model invocation failed on attempt {attempt}/{max_retries}: {e}"
+            )
+
+        # Backoff and retry if attempts remain
+        if attempt < max_retries:
+            sleep_s = min(2 ** (attempt - 1), 8)
+            logger.debug(f"Retrying extraction in {sleep_s}s...")
+            time.sleep(sleep_s)
+
+    # All attempts failed
+    return extractor_types.ExtractionResult(
+        extracted_data=None,
+        response_raw=last_response_raw_payload,
+        success=False,
+        message=last_error_msg or f"Failed after {max_retries} attempts",
+        input_tokens=last_input_tokens,
+        output_tokens=last_output_tokens,
+        cost=last_cost,
+    )
 
 
 def extract_objects(
@@ -299,7 +363,7 @@ def extract_objects(
     # NOTE: use objects_to_extract.config.parallel_requests to set max_workers
     max_workers = max(1, int(objects_to_extract.config.parallel_requests or 1))
 
-    results = dict()
+    results: Dict[str, extractor_types.ExtractionResult] = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_name = {
             executor.submit(
