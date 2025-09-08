@@ -15,16 +15,35 @@ logger = get_logger(__name__)
 
 def pil_img_to_base64(img) -> str:
     """
-    Convert a PIL image to a base64-encoded string.
+    Convert a PIL image (or first image in a list) to a base64-encoded JPEG string.
     Args:
-        img: PIL Image object
+        img: PIL Image object, list of PIL Images, or image-like object
     Returns:
         Base64-encoded string of the image
     """
     from io import BytesIO
+    from PIL import Image as PILImage
+
+    # If a list of images is provided, use the first one
+    if isinstance(img, list):
+        if not img:
+            raise ValueError("Empty image list provided")
+        img = img[0]
+
+    # If it's not a PIL image, attempt to open from bytes-like object
+    if not hasattr(img, "save"):
+        try:
+            img = PILImage.open(BytesIO(img))
+        except Exception as e:
+            logger.error(f"Unable to open image from provided data: {e}")
+            raise
+
+    # Ensure RGB mode for JPEG compatibility
+    if getattr(img, "mode", None) != "RGB":
+        img = img.convert("RGB")
 
     buffered = BytesIO()
-    img.save(buffered, format="JPEG")
+    img.save(buffered, format="JPEG", quality=85)
     img_str = base64.b64encode(buffered.getvalue()).decode()
     return img_str
 
@@ -59,19 +78,25 @@ def extract_object(
     )
 
     if extractor_types.FileInputMode.TEXT in config.file_input_modes:
-        PROMPT = PROMPT.replace(r"{{text}}", f"\n\n{doc.text}")
+        PROMPT = PROMPT.replace("{{text}}", f"\n\n{doc.text}")
 
     # Add Attachments
     attachments = []
     if extractor_types.FileInputMode.IMAGE in config.file_input_modes:
-        attachments.append(
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{pil_img_to_base64(doc.image)}"
-                },
-            }
-        )
+        if doc.image is not None:
+            try:
+                attachments.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{pil_img_to_base64(doc.image)}"
+                        },
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Skipping image attachment due to error: {e}")
+        else:
+            logger.debug("No image data available; skipping image attachment")
 
     if extractor_types.FileInputMode.FILE in config.file_input_modes:
         attachments.append(
@@ -93,25 +118,42 @@ def extract_object(
         f"Extracting {object_to_extract.name} {type(object_to_extract)}. Config: {config}"
     )
 
+    # Invoke model
     try:
         response = model.invoke(messages)
-        response_json = json.loads(response.content)
+    except Exception as e:
+        logger.error(f"Model invocation failed: {e}")
+        return extractor_types.ExtractionResult(
+            extracted_data=None,
+            response_raw=None,
+            success=False,
+            message=f"Model invocation failed: {e}",
+        )
 
+    # Parse JSON content
+    content = getattr(response, "content", "")
+    if not isinstance(content, str):
+        content = str(content)
+
+    # Strip potential markdown code fences
+    content_str = content.replace("```json", "").replace("```", "").strip()
+
+    try:
+        response_json = json.loads(content_str)
         return extractor_types.ExtractionResult(
             extracted_data=response_json,
             response_raw=response,
             success=True,
             message="Extraction successful",
         )
-
-    except Exception as e:
-        logger.error(f"Error during extraction: {e}")
-
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse JSON from model response: {e}")
+        preview = content_str[:200].replace("\n", " ")
         return extractor_types.ExtractionResult(
             extracted_data=None,
-            response_raw=None,
+            response_raw=response,
             success=False,
-            message=str(e),
+            message=f"Response was not valid JSON: {e}. Content preview: {preview}",
         )
 
 
@@ -129,7 +171,7 @@ def extract_objects(
     """
 
     # NOTE: use objects_to_extract.config.parallel_requests to set max_workers
-    max_workers = objects_to_extract.config.parallel_requests
+    max_workers = max(1, int(objects_to_extract.config.parallel_requests or 1))
 
     results = dict()
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:

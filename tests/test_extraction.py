@@ -106,24 +106,6 @@ def main():
     logger.info(f"Loaded document text preview: \n{doc.text[:500]}...\n")
     logger.info(f"Loaded document image data: {doc.image}")
 
-    # config_img_text = et.ExtractionConfig(
-    #     model_name=MODEL,
-    #     temperature=0.0,
-    #     file_input_modes=[
-    #         et.FileInputMode.TEXT,
-    #         et.FileInputMode.IMAGE,
-    #         # et.FileInputMode.FILE,
-    #     ],
-    # )
-
-    # logger.info(f"\nUsing extraction config: {config_img_text}")
-    # result = extract_object(doc, TABLE_TO_EXTRACT, config_img_text)
-    # if result.success:
-    #     logger.info(
-    #         f"\n\nExtraction successful. Extracted data:\n{result.extracted_data}"
-    #     )
-    #     logger.info(f"raw response: {result.response_raw}")
-
     config_file_input = et.ExtractionConfig(
         model_name=MODEL,
         temperature=0.0,
@@ -143,11 +125,15 @@ def main():
     result = extract_objects(doc, objects_to_extract)
 
     if result.success:
-        logger.info(f"\n\nExtraction successful. Results keys:\n{list(result.results.keys())}")
+        logger.info(
+            f"\n\nExtraction successful. Results keys:\n{list(result.results.keys())}"
+        )
         for name, res in result.results.items():
             logger.info(f"[{name}] success={res.success} message={res.message}")
-            logger.info(f"[{name}] extracted data:\n{res.extracted_data}")
-            logger.info(f"[{name}] raw response: {res.response_raw}")
+            logger.info(
+                f"[{name}] extracted data:\n{pl.DataFrame(res.extracted_data)}\n\n"
+            )
+            logger.info(f"[{name}] raw response: {res.response_raw}\n\n")
 
 
 if __name__ == "__main__":

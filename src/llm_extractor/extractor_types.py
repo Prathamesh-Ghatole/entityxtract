@@ -1,8 +1,10 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 import polars as pl
-from typing import Union, List, Any
+from typing import Union, List, Any, Optional
 from pathlib import Path
 from enum import Enum
+from PIL import Image as PILImage
+from io import BytesIO
 
 from .pdf.extractor import pdf_to_text, pdf_to_image
 from .config import get_config
@@ -29,7 +31,7 @@ class ExtractionConfig(BaseModel):
     temperature: float = 0.0
     max_retries: int = 3
     parallel_requests: int = 1
-    file_input_modes: List[FileInputMode] = [FileInputMode.FILE]
+    file_input_modes: List[FileInputMode] = Field(default_factory=lambda: [FileInputMode.FILE])
 
 
 # === Extractable Objects === #
@@ -88,7 +90,7 @@ class ObjectsToExtract(BaseModel):
     Pydantic model to declare a collection of objects to be extracted from a document.
     """
 
-    objects: list[TableToExtract]
+    objects: list[ExtractableObjectTypes]
     config: ExtractionConfig
 
 
@@ -105,9 +107,9 @@ class Document:
 
     _binary: bytes = b""
     _text_data: str = ""
-    _image_data: bytes = b""
+    _image_data: Optional[Union[PILImage, List[PILImage]]] = None
     _file_path: Path = Path("")
-    _file_type: DocType = None
+    _file_type: Optional[DocType] = None
 
     def __init__(self, file_path: str | Path):
         self._file_path = Path(file_path)
@@ -158,15 +160,27 @@ class Document:
 
         if self._file_type == DocType.PDF:
             self._text_data = pdf_to_text(self._binary)
+        elif self._file_type == DocType.TEXT:
+            try:
+                self._text_data = self._binary.decode("utf-8", errors="ignore")
+            except Exception as e:
+                logger.error(f"Failed to decode text file: {e}")
+                self._text_data = ""
 
         return self._text_data
 
     @property
-    def image(self) -> bytes | List[bytes]:
-        if self._image_data:
+    def image(self) -> Optional[Union[PILImage, List[PILImage]]]:
+        if self._image_data is not None:
             return self._image_data
 
         if self._file_type == DocType.PDF:
             self._image_data = pdf_to_image(self._binary)
+        elif self._file_type == DocType.IMAGE:
+            try:
+                self._image_data = PILImage.open(BytesIO(self._binary)).convert("RGB")
+            except Exception as e:
+                logger.error(f"Failed to decode image file: {e}")
+                self._image_data = None
 
         return self._image_data
