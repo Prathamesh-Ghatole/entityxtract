@@ -1,5 +1,6 @@
 import base64
 import json
+import time
 import concurrent.futures
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -121,6 +122,11 @@ def extract_object(
     # Invoke model
     try:
         response = model.invoke(messages)
+        # Serialize response to dict for complete metadata (incl. generation id)
+        try:
+            response_dict = response.dict()
+        except Exception:
+            response_dict = None
     except Exception as e:
         logger.error(f"Model invocation failed: {e}")
         return extractor_types.ExtractionResult(
@@ -130,6 +136,107 @@ def extract_object(
             message=f"Model invocation failed: {e}",
         )
 
+    # Extract token usage if available
+    input_tokens = None
+    output_tokens = None
+    usage_meta = (
+        response_dict.get("usage_metadata") if isinstance(response_dict, dict) else None
+    ) or getattr(response, "usage_metadata", None)
+    if isinstance(usage_meta, dict):
+        input_tokens = usage_meta.get("input_tokens") or usage_meta.get("prompt_tokens")
+        output_tokens = usage_meta.get("output_tokens") or usage_meta.get(
+            "completion_tokens"
+        )
+    resp_meta = (
+        (
+            response_dict.get("response_metadata")
+            if isinstance(response_dict, dict)
+            else None
+        )
+        or getattr(response, "response_metadata", None)
+        or {}
+    )
+    if (input_tokens is None or output_tokens is None) and isinstance(resp_meta, dict):
+        tu = resp_meta.get("token_usage", {}) or {}
+        input_tokens = input_tokens or tu.get("input_tokens") or tu.get("prompt_tokens")
+        output_tokens = (
+            output_tokens or tu.get("output_tokens") or tu.get("completion_tokens")
+        )
+
+    # Optionally fetch generation stats for cost (OpenRouter)
+    cost = None
+    generation_stats = None
+    try:
+        generation_id = None
+        if isinstance(resp_meta, dict):
+            generation_id = resp_meta.get("id")
+        if config.calculate_costs and generation_id:
+            api_base = (
+                get_config("OPENROUTER.API_BASE")
+                or get_config("OPENAI_API_BASE")
+                or "https://openrouter.ai/api/v1"
+            )
+            api_key = get_config("OPENROUTER.API_KEY") or get_config("OPENAI_API_KEY")
+            headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+            url = f"{api_base.rstrip('/')}/generation"
+            logger.debug(
+                f"Cost lookup: id={generation_id} base={api_base} auth={'yes' if api_key else 'no'}"
+            )
+            try:
+                import requests as _requests
+
+                # Retry a few times in case the generation record isn't immediately available
+                delays = [0.5, 1.0, 2.0]
+                last_status = None
+                last_text = ""
+                for attempt, delay in enumerate(delays, start=1):
+                    resp = _requests.get(
+                        url, params={"id": generation_id}, headers=headers, timeout=10
+                    )
+                    last_status = resp.status_code
+                    last_text = resp.text[:200]
+                    if resp.ok:
+                        logger.info(f"Generation API output: {resp.text}")
+                        generation_stats = resp.json()
+                        try:
+                            data = generation_stats.get("data", {})
+                            cost = data.get("total_cost")
+                            logger.debug(f"Cost lookup success: total_cost={cost}")
+                        except Exception:
+                            logger.warning(
+                                "Generation stats JSON missing 'data.total_cost'."
+                            )
+                        break
+                    # Retry on 404 as record may not be indexed yet
+                    if resp.status_code == 404 and attempt < len(delays):
+                        logger.debug(
+                            f"Generation not found yet (404). Retry {attempt}/{len(delays) - 1} after {delay}s..."
+                        )
+                        time.sleep(delay)
+                        continue
+                    # Non-retryable or final attempt
+                    logger.warning(
+                        f"Generation stats request failed: {resp.status_code} {resp.text[:200]}"
+                    )
+                    break
+                else:
+                    # Loop exhausted without break (shouldn't happen due to break in failures)
+                    logger.warning(
+                        f"Generation stats request failed: {last_status} {last_text}"
+                    )
+            except ImportError as ie:
+                logger.warning(
+                    f"Requests library not installed; skipping generation stats fetch: {ie}"
+                )
+            except Exception as e:
+                logger.warning(f"Error calling generation stats endpoint: {e}")
+        elif config.calculate_costs and not generation_id:
+            logger.debug(
+                "calculate_costs enabled but no generation id found in response metadata."
+            )
+    except Exception as e:
+        logger.warning(f"Failed to process generation stats: {e}")
+
     # Parse JSON content
     content = getattr(response, "content", "")
     if not isinstance(content, str):
@@ -138,22 +245,41 @@ def extract_object(
     # Strip potential markdown code fences
     content_str = content.replace("```json", "").replace("```", "").strip()
 
+    # Build a serializable raw response payload
+    if isinstance(response_dict, dict):
+        logger.debug(f"Raw chat response dict: {response_dict}")
+        response_raw_payload = dict(response_dict)
+    else:
+        response_raw_payload = {
+            "content": content,
+            "response_metadata": resp_meta,
+            "usage_metadata": usage_meta,
+        }
+    if generation_stats is not None:
+        response_raw_payload["generation_stats"] = generation_stats
+
     try:
         response_json = json.loads(content_str)
         return extractor_types.ExtractionResult(
             extracted_data=response_json,
-            response_raw=response,
+            response_raw=response_raw_payload,
             success=True,
             message="Extraction successful",
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost=cost,
         )
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse JSON from model response: {e}")
         preview = content_str[:200].replace("\n", " ")
         return extractor_types.ExtractionResult(
             extracted_data=None,
-            response_raw=response,
+            response_raw=response_raw_payload,
             success=False,
             message=f"Response was not valid JSON: {e}. Content preview: {preview}",
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost=cost,
         )
 
 

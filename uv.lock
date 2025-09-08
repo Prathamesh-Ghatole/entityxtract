@@ -464,6 +464,7 @@ dependencies = [
     { name = "polars" },
     { name = "pydantic" },
     { name = "pypdfium2" },
+    { name = "requests" },
     { name = "xlsxwriter" },
 ]
 
@@ -476,6 +477,7 @@ requires-dist = [
     { name = "polars", specifier = ">=1.33.0" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pypdfium2", specifier = ">=4.30.0" },
+    { name = "requests", specifier = ">=2.32.5" },
     { name = "xlsxwriter", specifier = ">=3.2.5" },
 ]
 

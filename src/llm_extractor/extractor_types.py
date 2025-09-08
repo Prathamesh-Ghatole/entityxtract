@@ -4,6 +4,7 @@ from typing import Union, List, Any, Optional
 from pathlib import Path
 from enum import Enum
 from PIL import Image as PILImage
+from PIL.Image import Image as PILImageType
 from io import BytesIO
 
 from .pdf.extractor import pdf_to_text, pdf_to_image
@@ -31,7 +32,10 @@ class ExtractionConfig(BaseModel):
     temperature: float = 0.0
     max_retries: int = 3
     parallel_requests: int = 1
-    file_input_modes: List[FileInputMode] = Field(default_factory=lambda: [FileInputMode.FILE])
+    file_input_modes: List[FileInputMode] = Field(
+        default_factory=lambda: [FileInputMode.FILE]
+    )
+    calculate_costs: bool = False
 
 
 # === Extractable Objects === #
@@ -73,6 +77,9 @@ class ExtractionResult(BaseModel):
     response_raw: Any
     success: bool
     message: str
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    cost: Optional[float] = None
 
 
 class ExtractionResults(BaseModel):
@@ -107,8 +114,9 @@ class Document:
 
     _binary: bytes = b""
     _text_data: str = ""
-    _image_data: Optional[Union[PILImage, List[PILImage]]] = None
+    _image_data: Optional[Union[PILImageType, List[PILImageType]]] = None
     _file_path: Path = Path("")
+    _file_type: Optional[DocType] = None
     _file_type: Optional[DocType] = None
 
     def __init__(self, file_path: str | Path):
@@ -170,8 +178,9 @@ class Document:
         return self._text_data
 
     @property
-    def image(self) -> Optional[Union[PILImage, List[PILImage]]]:
+    def image(self) -> Optional[Union[PILImageType, List[PILImageType]]]:
         if self._image_data is not None:
+            return self._image_data
             return self._image_data
 
         if self._file_type == DocType.PDF:

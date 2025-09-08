@@ -3,7 +3,7 @@ import polars as pl
 
 from llm_extractor.extractor_types import Document
 from llm_extractor.logging_config import setup_logging, get_logger
-from llm_extractor.extractor import extract_object, extract_objects
+from llm_extractor.extractor import extract_objects
 from llm_extractor import extractor_types as et
 
 # Initialize logging for the script
@@ -113,10 +113,14 @@ def main():
             et.FileInputMode.FILE,
         ],
         parallel_requests=2,
+        calculate_costs=True,
     )
 
     objects_to_extract = et.ObjectsToExtract(
-        objects=[TABLE1, TABLE2],
+        objects=[
+            TABLE1,
+            TABLE2,
+        ],
         config=config_file_input,
     )
 
@@ -129,7 +133,9 @@ def main():
             f"\n\nExtraction successful. Results keys:\n{list(result.results.keys())}"
         )
         for name, res in result.results.items():
-            logger.info(f"[{name}] success={res.success} message={res.message}")
+            logger.info(
+                f"[{name}] success={res.success} message={res.message} input_tokens={res.input_tokens} output_tokens={res.output_tokens} costs={res.cost}"
+            )
             logger.info(
                 f"[{name}] extracted data:\n{pl.DataFrame(res.extracted_data)}\n\n"
             )

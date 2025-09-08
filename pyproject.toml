@@ -15,6 +15,7 @@ dependencies = [
     "polars>=1.33.0",
     "pydantic>=2.11.7",
     "pypdfium2>=4.30.0",
+    "requests>=2.32.5",
     "xlsxwriter>=3.2.5",
 ]
 
