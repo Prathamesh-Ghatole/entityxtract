@@ -78,7 +78,7 @@ class ExtractionResults(BaseModel):
     Pydantic model to hold a collection of extraction results.
     """
 
-    results: dict[ExtractableObjectTypes, ExtractionResult]
+    results: dict[str, ExtractionResult]
     success: bool
     message: str | None = None
 

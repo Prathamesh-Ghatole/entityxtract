@@ -113,3 +113,51 @@ def extract_object(
             success=False,
             message=str(e),
         )
+
+
+def extract_objects(
+    doc: extractor_types.Document,
+    objects_to_extract: extractor_types.ObjectsToExtract,
+) -> extractor_types.ExtractionResults:
+    """
+    Extract multiple objects from the document concurrently.
+    Args:
+        doc: Document object containing the data to extract from
+        objects_to_extract: ObjectsToExtract object containing the list of objects and config
+    Returns:
+        ExtractionResults object containing the results of the extractions
+    """
+
+    # NOTE: use objects_to_extract.config.parallel_requests to set max_workers
+    max_workers = objects_to_extract.config.parallel_requests
+
+    results = dict()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_name = {
+            executor.submit(
+                extract_object, doc, obj, objects_to_extract.config
+            ): obj.name
+            for obj in objects_to_extract.objects
+        }
+
+        for future in concurrent.futures.as_completed(future_to_name):
+            obj_name = future_to_name[future]
+            try:
+                result = future.result()
+                results[obj_name] = result
+            except Exception as e:
+                logger.error(f"Error extracting {obj_name}: {e}")
+                results[obj_name] = extractor_types.ExtractionResult(
+                    extracted_data=None,
+                    response_raw=None,
+                    success=False,
+                    message=str(e),
+                )
+
+    overall_success = all(result.success for result in results.values())
+
+    return extractor_types.ExtractionResults(
+        results=results,
+        success=overall_success,
+        message=None if overall_success else "Some extractions failed",
+    )
