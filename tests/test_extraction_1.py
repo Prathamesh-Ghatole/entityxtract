@@ -5,12 +5,13 @@ from llm_extractor.extractor_types import Document
 from llm_extractor.logging_config import setup_logging, get_logger
 from llm_extractor.extractor import extract_objects
 from llm_extractor import extractor_types as et
+from utils_io import save_results_to_csv
 
 # Initialize logging for the script
 setup_logging()
 logger = get_logger(__name__)
 
-SAMPLE_PDF_PATH = Path(__file__).parent / "sample.pdf"
+SAMPLE_PDF_PATH = Path(__file__).parent / "data" /"sample_1.pdf"
 MODEL = "google/gemini-2.5-flash"
 
 TABLE1 = et.TableToExtract(
@@ -132,6 +133,8 @@ def main():
         logger.info(
             f"\n\nExtraction successful. Results keys:\n{list(result.results.keys())}"
         )
+        output_dir = Path(__file__).parent / "logs" / "extracted_csv"
+        save_results_to_csv(result.results, output_dir, logger, SAMPLE_PDF_PATH.stem)
         for name, res in result.results.items():
             logger.info(
                 f"[{name}] success={res.success} message={res.message} input_tokens={res.input_tokens} output_tokens={res.output_tokens} costs={res.cost}"
