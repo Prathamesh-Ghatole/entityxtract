@@ -1,5 +1,6 @@
 from pathlib import Path
 import polars as pl
+import time
 
 from llm_extractor.extractor_types import Document
 from llm_extractor.logging_config import setup_logging, get_logger
@@ -220,6 +221,8 @@ TABLE5 = et.TableToExtract(
 
 def main():
     logger.info(f"Loading document from {SAMPLE_PDF_PATH}")
+
+    start_time = time.time()
     doc = Document(SAMPLE_PDF_PATH)
 
     logger.info(f"Loaded document text: {len(doc.text)} characters")
@@ -264,7 +267,12 @@ def main():
             logger.info(
                 f"[{name}] extracted data:\n{pl.DataFrame(res.extracted_data)}\n\n"
             )
-            # logger.info(f"[{name}] raw response: {res.response_raw}\n\n")
+
+    time_taken = round(time.time() - start_time, 2)
+
+    logger.info(
+        f"Extracted {len(result.results)} tables in ${result.total_cost} using {result.total_input_tokens} input tokens and {result.total_output_tokens} output tokens in {time_taken} seconds"
+    )
 
 
 if __name__ == "__main__":

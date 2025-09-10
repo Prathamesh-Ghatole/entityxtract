@@ -90,6 +90,9 @@ class ExtractionResults(BaseModel):
     results: dict[str, ExtractionResult]
     success: bool
     message: str | None = None
+    total_input_tokens: Optional[int] = None
+    total_output_tokens: Optional[int] = None
+    total_cost: Optional[float] = None
 
 
 class ObjectsToExtract(BaseModel):

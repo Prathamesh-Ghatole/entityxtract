@@ -14,6 +14,9 @@ config.yml
 .env
 .env.*
 
-old.ignore/*
 # Logs
 logs/
+
+# Misc
+.DS_Store
+old.ignore/*

@@ -1,5 +1,6 @@
 from pathlib import Path
 import polars as pl
+import time
 
 from llm_extractor.extractor_types import Document
 from llm_extractor.logging_config import setup_logging, get_logger
@@ -11,7 +12,7 @@ from utils_io import save_results_to_csv
 setup_logging()
 logger = get_logger(__name__)
 
-SAMPLE_PDF_PATH = Path(__file__).parent / "data" /"sample_1.pdf"
+SAMPLE_PDF_PATH = Path(__file__).parent / "data" / "sample_1.pdf"
 MODEL = "google/gemini-2.5-flash"
 
 TABLE1 = et.TableToExtract(
@@ -101,6 +102,8 @@ TABLE2 = et.TableToExtract(
 
 def main():
     logger.info(f"Loading document from {SAMPLE_PDF_PATH}")
+
+    start_time = time.time()
     doc = Document(SAMPLE_PDF_PATH)
 
     logger.info(f"Loaded document text: {len(doc.text)} characters")
@@ -113,7 +116,7 @@ def main():
         file_input_modes=[
             et.FileInputMode.FILE,
         ],
-        parallel_requests=2,
+        parallel_requests=4,
         calculate_costs=True,
     )
 
@@ -142,7 +145,12 @@ def main():
             logger.info(
                 f"[{name}] extracted data:\n{pl.DataFrame(res.extracted_data)}\n\n"
             )
-            logger.info(f"[{name}] raw response: {res.response_raw}\n\n")
+
+    time_taken = round(time.time() - start_time, 2)
+
+    logger.info(
+        f"Extracted {len(result.results)} tables in ${result.total_cost} using {result.total_input_tokens} input tokens and {result.total_output_tokens} output tokens in {time_taken} seconds"
+    )
 
 
 if __name__ == "__main__":

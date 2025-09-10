@@ -188,7 +188,6 @@ def _fetch_generation_cost(
                     last_status = resp.status_code
                     last_text = resp.text[:200]
                     if resp.ok:
-                        logger.info(f"Generation API output: {resp.text}")
                         generation_stats = resp.json()
                         try:
                             data = generation_stats.get("data", {})
@@ -318,7 +317,9 @@ def extract_object(
                 preview = content_str[:200].replace("\n", " ")
             except Exception:
                 pass
-            last_error_msg = f"Response was not valid JSON: {e}. Content preview: {preview}"
+            last_error_msg = (
+                f"Response was not valid JSON: {e}. Content preview: {preview}"
+            )
             logger.error(
                 f"Failed to parse JSON from model response on attempt {attempt}/{max_retries}: {e}"
             )
@@ -392,4 +393,17 @@ def extract_objects(
         results=results,
         success=overall_success,
         message=None if overall_success else "Some extractions failed",
+        total_input_tokens=sum(
+            (res.input_tokens or None)
+            for res in results.values()
+            if res.input_tokens is not None
+        ),
+        total_output_tokens=sum(
+            (res.output_tokens or None)
+            for res in results.values()
+            if res.output_tokens is not None
+        ),
+        total_cost=sum(
+            (res.cost or None) for res in results.values() if res.cost is not None
+        ),
     )
