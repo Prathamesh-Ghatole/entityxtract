@@ -9,7 +9,7 @@ from io import BytesIO
 
 from .pdf.extractor import pdf_to_text, pdf_to_image
 from .config import get_config
-from llm_extractor.logging_config import get_logger
+from entityxtract.logging_config import get_logger
 
 logger = get_logger(__name__)
 

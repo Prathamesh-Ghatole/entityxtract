@@ -6,7 +6,7 @@ from pathlib import Path
 import pypdfium2 as pdfium
 from PIL import Image
 from typing import Dict, List, Union
-from llm_extractor.logging_config import get_logger
+from entityxtract.logging_config import get_logger
 
 # Module logger (configured by setup_logging() at app entry)
 logger = get_logger(__name__)

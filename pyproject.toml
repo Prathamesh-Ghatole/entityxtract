@@ -1,5 +1,5 @@
 [project]
-name = "llm-extractor"
+name = "entityxtract"
 version = "0.4.4"
 description = "Add your description here"
 readme = "README.md"
@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.scripts]
-llm-extractor = "llm_extractor:main"
+llm-extractor = "entityxtract:main"
 
 [build-system]
 requires = ["hatchling"]

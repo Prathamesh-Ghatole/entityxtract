@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from . import extractor_types
 from .config import get_config
 from .prompts import get_prompt, get_system_prompt
-from llm_extractor.logging_config import get_logger
+from entityxtract.logging_config import get_logger
 
 
 logger = get_logger(__name__)

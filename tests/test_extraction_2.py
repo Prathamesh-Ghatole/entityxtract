@@ -2,10 +2,10 @@ from pathlib import Path
 import polars as pl
 import time
 
-from llm_extractor.extractor_types import Document
-from llm_extractor.logging_config import setup_logging, get_logger
-from llm_extractor.extractor import extract_objects
-from llm_extractor import extractor_types as et
+from entityxtract.extractor_types import Document
+from entityxtract.logging_config import setup_logging, get_logger
+from entityxtract.extractor import extract_objects
+from entityxtract import extractor_types as et
 from utils_io import save_results_to_csv
 
 # Initialize logging for the script

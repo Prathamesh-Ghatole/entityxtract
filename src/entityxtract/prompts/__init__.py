@@ -1,6 +1,6 @@
 import regex as re
 from pathlib import Path
-from llm_extractor import extractor_types
+from entityxtract import extractor_types
 
 ALL_FILES = Path(__file__).parent.glob("*.txt")
 SYSTEM_PROMPT_FILE = "system.txt"

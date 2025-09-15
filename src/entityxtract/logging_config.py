@@ -1,14 +1,14 @@
 """
-Centralized logging configuration for llm_extractor.
+Centralized logging configuration for entityxtract.
 
 Features:
 - Console + rotating file handlers
 - Configurable via environment variables:
-    LLM_EXTRACTOR_LOG_LEVEL       (e.g., DEBUG, INFO, WARNING)
-    LLM_EXTRACTOR_CONSOLE_LEVEL   (overrides console handler level)
-    LLM_EXTRACTOR_FILE_LEVEL      (overrides file handler level)
-    LLM_EXTRACTOR_LOG_DIR         (directory for log files; defaults to <CWD>/logs)
-    LLM_EXTRACTOR_LOG_FILE        (filename; defaults to llm_extractor.log)
+    ENTITYXTRACT_LOG_LEVEL       (e.g., DEBUG, INFO, WARNING)
+    ENTITYXTRACT_CONSOLE_LEVEL   (overrides console handler level)
+    ENTITYXTRACT_FILE_LEVEL      (overrides file handler level)
+    ENTITYXTRACT_LOG_DIR         (directory for log files; defaults to <CWD>/logs)
+    ENTITYXTRACT_LOG_FILE        (filename; defaults to entityxtract.log)
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ def _parse_level(value: Optional[Union[str, int]], default: int = logging.INFO) 
 
 
 def _default_log_dir() -> Path:
-    env_dir = os.environ.get("LLM_EXTRACTOR_LOG_DIR")
+    env_dir = os.environ.get("ENTITYXTRACT_LOG_DIR")
     if env_dir:
         return Path(env_dir)
     # Default to current working directory /logs
@@ -63,9 +63,9 @@ def setup_logging(
     root = logging.getLogger()
 
     # Resolve levels (env overrides are supported)
-    env_level = os.environ.get("LLM_EXTRACTOR_LOG_LEVEL")
-    env_console = os.environ.get("LLM_EXTRACTOR_CONSOLE_LEVEL")
-    env_file = os.environ.get("LLM_EXTRACTOR_FILE_LEVEL")
+    env_level = os.environ.get("ENTITYXTRACT_LOG_LEVEL")
+    env_console = os.environ.get("ENTITYXTRACT_CONSOLE_LEVEL")
+    env_file = os.environ.get("ENTITYXTRACT_FILE_LEVEL")
 
     root_level = _parse_level(level or env_level or logging.INFO)
     c_level = _parse_level(console_level or env_console or root_level)
@@ -89,8 +89,10 @@ def setup_logging(
         log_dir = _default_log_dir()
         log_dir.mkdir(parents=True, exist_ok=True)
 
-        log_path = Path(log_file) if log_file else log_dir / os.environ.get(
-            "LLM_EXTRACTOR_LOG_FILE", "llm_extractor.log"
+        log_path = (
+            Path(log_file)
+            if log_file
+            else log_dir / os.environ.get("ENTITYXTRACT_LOG_FILE", "entityxtract.log")
         )
 
         file_handler = RotatingFileHandler(
@@ -105,7 +107,9 @@ def setup_logging(
         root.addHandler(file_handler)
     except Exception:
         # If file setup fails, fall back to console-only and record the failure.
-        root.exception("Failed to set up file logging handler; continuing with console only.")
+        root.exception(
+            "Failed to set up file logging handler; continuing with console only."
+        )
 
     _LOGGING_CONFIGURED = True
 

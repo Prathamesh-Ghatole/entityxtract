@@ -6,7 +6,7 @@ import base64
 from io import BytesIO
 from PIL import Image
 from typing import Optional
-from llm_extractor.logging_config import get_logger
+from entityxtract.logging_config import get_logger
 
 logger = get_logger(__name__)
 
