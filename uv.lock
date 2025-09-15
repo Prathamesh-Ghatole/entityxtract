@@ -129,6 +129,35 @@ wheels = [
 ]
 
 [[package]]
+name = "entityxtract"
+version = "0.4.4"
+source = { editable = "." }
+dependencies = [
+    { name = "fastapi", extra = ["standard"] },
+    { name = "langchain" },
+    { name = "langchain-openai" },
+    { name = "pillow" },
+    { name = "polars" },
+    { name = "pydantic" },
+    { name = "pypdfium2" },
+    { name = "requests" },
+    { name = "xlsxwriter" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", extras = ["standard"], specifier = ">=0.116.1" },
+    { name = "langchain", specifier = ">=0.3.27" },
+    { name = "langchain-openai", specifier = ">=0.3.32" },
+    { name = "pillow", specifier = ">=11.3.0" },
+    { name = "polars", specifier = ">=1.33.0" },
+    { name = "pydantic", specifier = ">=2.11.7" },
+    { name = "pypdfium2", specifier = ">=4.30.0" },
+    { name = "requests", specifier = ">=2.32.5" },
+    { name = "xlsxwriter", specifier = ">=3.2.5" },
+]
+
+[[package]]
 name = "fastapi"
 version = "0.116.1"
 source = { registry = "https://pypi.org/simple" }
@@ -450,35 +479,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/0c/84/2f01d51a557d14a9a5590c32de5dde3b466b00a55521450c2c9e77ffa438/langsmith-0.4.25.tar.gz", hash = "sha256:56f0c45810384fba37582ca17fdbcf6ead51934d26d72672e5a810452c0d4ae3", size = 940274, upload-time = "2025-09-04T23:59:33.97Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a5/85/8a5ca8f6044bd74acd0d364878b459d84ec460cf40aec17ed9cd5716e908/langsmith-0.4.25-py3-none-any.whl", hash = "sha256:adb61784ff58e65f0290ba45770626219fb06a776e69fbcf98aec580478b4686", size = 379416, upload-time = "2025-09-04T23:59:31.72Z" },
-]
-
-[[package]]
-name = "llm-extractor"
-version = "0.4.4"
-source = { editable = "." }
-dependencies = [
-    { name = "fastapi", extra = ["standard"] },
-    { name = "langchain" },
-    { name = "langchain-openai" },
-    { name = "pillow" },
-    { name = "polars" },
-    { name = "pydantic" },
-    { name = "pypdfium2" },
-    { name = "requests" },
-    { name = "xlsxwriter" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", extras = ["standard"], specifier = ">=0.116.1" },
-    { name = "langchain", specifier = ">=0.3.27" },
-    { name = "langchain-openai", specifier = ">=0.3.32" },
-    { name = "pillow", specifier = ">=11.3.0" },
-    { name = "polars", specifier = ">=1.33.0" },
-    { name = "pydantic", specifier = ">=2.11.7" },
-    { name = "pypdfium2", specifier = ">=4.30.0" },
-    { name = "requests", specifier = ">=2.32.5" },
-    { name = "xlsxwriter", specifier = ">=3.2.5" },
 ]
 
 [[package]]
