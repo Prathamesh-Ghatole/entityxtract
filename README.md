@@ -190,6 +190,7 @@ Environment keys (illustrative):
   - Web UI for entity/schema management, job runs, and results review/export
   - UI Automatic Mode: detect tabular structures in documents and auto-generate sample entity definitions (JSON) to speed setup
 - Developer Experience:
+  - Publish to PyPI
   - ENV-first configuration (deprecate YAML path over time)
   - One-time document annotation to reduce repeated token usage/costs
   - CLI entrypoint (`entityxtract:main`) to match pyproject script
