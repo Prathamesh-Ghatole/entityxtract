@@ -21,7 +21,6 @@ Similar in purpose to Llama Extract, but open source and designed to work with a
 - Roadmap
 - Comparisons
 - Contributing
-- License
 
 ## Features
 - Entity-first extraction
@@ -215,9 +214,6 @@ Additional docs to be added:
 - Use uv for environment management.
 - Follow strict JSON output and logging conventions.
 - Open an issue or PR with a clear description and tests where possible.
-
-## License
-TBD. Consider MIT or Apache-2.0. If you choose a license, add a LICENSE file and update this section.
 
 ---
 
