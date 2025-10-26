@@ -18,7 +18,7 @@ Built as an **open-source alternative** to Google Cloud Document AI, Azure AI Do
 
 <p align="center">
   <a href="https://github.com/Prathamesh-Ghatole/entityxtract">
-    <img loading="lazy" alt="entityxtract" src="https://github.com/Prathamesh-Ghatole/entityxtract/raw/main/docs/assets/entityextract_flow.png" width="100%"/>
+    <img loading="lazy" alt="entityxtract" src="https://github.com/Prathamesh-Ghatole/entityxtract/raw/main/docs/assets/entityxtract_flow.png" width="100%"/>
   </a>
 </p>
 
