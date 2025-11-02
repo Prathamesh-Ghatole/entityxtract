@@ -28,7 +28,7 @@ class ExtractionConfig(BaseModel):
     Pydantic model to declare the configuration for the extraction process.
     """
 
-    model_name: str = get_config("DEFAULT_MODEL")
+    model_name: str = get_config("OPENAI_DEFAULT_MODEL")
     temperature: float = 0.0
     max_retries: int = 3
     parallel_requests: int = 1

@@ -163,12 +163,8 @@ def _fetch_generation_cost(
     try:
         generation_id = resp_meta.get("id") if isinstance(resp_meta, dict) else None
         if config.calculate_costs and generation_id:
-            api_base = (
-                get_config("OPENROUTER.API_BASE")
-                or get_config("OPENAI_API_BASE")
-                or "https://openrouter.ai/api/v1"
-            )
-            api_key = get_config("OPENROUTER.API_KEY") or get_config("OPENAI_API_KEY")
+            api_base = get_config("OPENAI_API_BASE")
+            api_key = get_config("OPENAI_API_KEY")
             headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
             url = f"{api_base.rstrip('/')}/generation"
             logger.debug(

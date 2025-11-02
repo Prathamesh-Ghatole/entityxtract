@@ -25,29 +25,20 @@ Built as an **open-source alternative** to Google Cloud Document AI, Azure AI Do
 
 ## Features
 
-* 🎯 **Entity-first extraction** — Pre-define entities (tables, strings, records) with schema, few-shot examples, and custom instructions
-* 📄 **Multiple document formats** — Support for PDF, DOCX, TXT, and images (PNG, TIFF, JPEG, etc.)
-* 🔀 **Flexible input modes** — Pass documents to LLMs as FILE, TEXT, IMAGE, or any combination
-* 🌐 **Provider-agnostic design** — Works with any LLM via OpenAI-compatible APIs or LangChain
-* 🔄 **Robust execution** — Built-in retries with exponential backoff, parallel extraction, strict JSON output
-* 📊 **Observability** — Structured logs, token usage tracking, and optional cost calculation
-* 💾 **Clean outputs** — JSON-compatible structures perfect for DataFrames and CSV/XLSX export
-* 🚀 **Recommended model** — Optimized for Gemini 2.5 Flash (but works with any LLM)
-
-### What's New
-
-* 🔧 Provider-agnostic architecture with LangChain integration
-* 📈 Parallel extraction for multiple entities
-* 💰 Token usage and cost tracking capabilities
-* 🎨 Polars DataFrame support for table entities
+* 🎯 **Entity-first extraction** — Smart structured data extraction with pre-defined / auto-identified entities.
+* 📄 **Multiple document formats** — Support for PDF, TXT, MD, and images.
+* 🔀 **Smart input modes** — Extract information using text, OCR, or hybrid approaches.
+* 🌐 **Provider-agnostic design** — Works with any LLM via OpenAI-compatible APIs.
+* 🔄 **Robust execution** — Built-in retries, parallel extraction, strictly structured and typed output.
+* 📊 **Observability** — Structured logs, token usage tracking, and optional cost tracking.
 
 ### Coming Soon
 
-* 🖥️ **Web UI** for visual entity/schema management and job monitoring
-* 🔍 **Auto-detect mode** to automatically identify extractable entities in documents
-* 👁️ **Deepseek OCR** integration for enhanced document processing
-* 🔌 **MCP server** for agentic applications
-* 📦 **PyPI publishing** for easier installation
+* 🖥️ **Web UI** for visual entity/schema management and job monitoring.
+* 🔍 **Auto-detect mode** to automatically identify extractable entities in documents.
+* 👁️ **Deepseek OCR** integration for enhanced document processing.
+* 🔌 **MCP server** for agentic applications.
+* 📦 **PyPI publishing** for easier installation.
 
 ## Installation
 
@@ -67,7 +58,7 @@ uv sync
 
 ## Getting Started
 
-The entityxtract workflow is simple and powerful:
+Extract pre-defined entities:
 
 ```python
 from pathlib import Path
@@ -111,56 +102,18 @@ for name, result in results.results.items():
         print(f"Failed: {result.message}")
 ```
 
-## How It Works
-
-entityxtract follows a streamlined 4-step process:
-
-1. **Load Document** → Provide a PDF, DOCX, TXT, or image file
-2. **Define Entities** → Specify what to extract with schemas, examples, and instructions
-3. **Configure & Extract** → Choose your LLM, input modes, and extraction settings
-4. **Get Results** → Receive structured JSON data ready for analysis or export
-
-The framework intelligently:
-- Assembles prompts from your entity definitions
-- Composes multimodal messages (text + images + files)
-- Handles retries and error recovery automatically
-- Tracks token usage and costs
-- Returns clean, structured outputs
-
-**Recommended:** Gemini 2.5 Flash currently provides the best results for most use cases.
-
 ## Configuration
 
-entityxtract uses a flexible configuration system with environment variables as the preferred method:
-
-### Environment Variables (Recommended)
+Copy the sample environment file `.env.sample` to `.env`, or set the following environment variables directly:
 
 ```bash
 # For all OpenAI-compatible endpoints [OpenAI, OpenRouter, Ollama, lm-studio, etc.]
 export OPENAI_API_KEY="your-api-key"
-export OPENAI_API_BASE="https://api.openai.com/v1"
+export OPENAI_API_BASE="https://openrouter.ai/api/v1"
 
 # Default model
 export OPENAI_DEFAULT_MODEL="google/gemini-2.5-flash"
 ```
-
-### YAML Configuration (Transitional)
-
-For quick setup, you can use YAML configuration:
-
-```bash
-cp config.yml.sample config.yml
-# Edit config.yml with your API keys
-```
-
-```yaml
-OPENROUTER:
-  OPENAI_API_KEY: "YOUR_API_KEY_HERE"
-  OPENAI_API_BASE: "https://openrouter.ai/api/v1"
-  OPENAI_DEFAULT_MODEL: "google/gemini-2.0-flash-001"
-```
-
-**Note:** Environment variables take precedence over YAML. The project is migrating to ENV-first configuration.
 
 ## Usage Examples
 
@@ -257,33 +210,7 @@ config = ExtractionConfig(
 )
 ```
 
-See `tests/test_extraction_1.py` for more complete examples.
-
-## Architecture
-
-entityxtract is designed for simplicity and extensibility:
-
-```
-src/entityxtract/
-├── extractor.py          # Core extraction logic, LLM invocation, retries
-├── extractor_types.py    # Pydantic models for entities, config, results
-├── config.py             # Configuration management (ENV > YAML)
-├── logging_config.py     # Structured logging setup
-├── pdf/                  # PDF processing utilities
-│   ├── converter.py      # PDF to text conversion
-│   └── extractor.py      # PDF to image extraction
-└── prompts/              # Prompt templates
-    ├── system.txt        # System prompt template
-    ├── table.txt         # Table entity template
-    └── string.txt        # String entity template
-```
-
-**Data Flow:**
-1. Load `Document` (auto-handles PDF/TEXT/IMAGE format detection)
-2. Build prompts from templates + entity definitions
-3. Compose multimodal LLM message based on input modes
-4. Invoke LLM with strict JSON enforcement
-5. Parse, validate, and aggregate results with token/cost tracking
+See `tests/test.py` for more complete examples.
 
 ## Roadmap
 
@@ -312,16 +239,6 @@ src/entityxtract/
 ## Comparisons
 
 entityxtract positions itself as a flexible, open-source alternative to both commercial services and closed-source solutions:
-
-| Feature               | entityxtract       | Llama Extract   | Google Document AI | Azure AI Document Intelligence |
-| --------------------- | ------------------ | --------------- | ------------------ | ------------------------------ |
-| **Open Source**       | ✅ MIT License      | ❌ Closed        | ❌ Closed           | ❌ Closed                       |
-| **Provider Choice**   | ✅ Any LLM          | ❌ Llama only    | ❌ Google only      | ❌ Azure only                   |
-| **Schema-Driven**     | ✅ Full support     | ✅ Yes           | ⚠️ Limited          | ⚠️ Limited                      |
-| **Few-Shot Examples** | ✅ Built-in         | ✅ Yes           | ❌ No               | ❌ No                           |
-| **Local Execution**   | ✅ Planned (Ollama) | ❌ API only      | ❌ Cloud only       | ❌ Cloud only                   |
-| **Cost**              | 💰 Pay-per-token    | 💰 Pay-per-token | 💰💰 Enterprise      | 💰💰 Enterprise                  |
-| **Self-Hosted**       | ✅ Yes              | ❌ No            | ❌ No               | ❌ No                           |
 
 **Key Differentiators:**
 - **Provider Agnostic**: Works with any LLM, not locked to a single provider
