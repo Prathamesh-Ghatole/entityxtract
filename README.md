@@ -1,8 +1,8 @@
-<p align="center">
+<!-- <p align="center">
   <a href="https://github.com/Prathamesh-Ghatole/entityxtract">
-    <img loading="lazy" alt="entityxtract" src="https://github.com/Prathamesh-Ghatole/entityxtract/raw/main/docs/assets/logo.png" width="100%"/>
+    <img loading="lazy" alt="entityxtract" src="https://github.com/Prathamesh-Ghatole/entityxtract/raw/main/docs/assets/logo.png" width="50%"/>
   </a>
-</p>
+</p> -->
 
 # entityxtract
 
