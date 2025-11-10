@@ -36,6 +36,7 @@ Built as an **open-source alternative** to Google Cloud Document AI, Azure AI Do
 
 * 🖥️ **Web UI** for visual entity/schema management and job monitoring.
 * 🔍 **Auto-detect mode** to automatically identify extractable entities in documents.
+* 💰 **Cost Optimization** using PDF annotation caching, and smart input data pruning.
 * 👁️ **Deepseek OCR** integration for enhanced document processing.
 * 🔌 **MCP server** for agentic applications.
 * 📦 **PyPI publishing** for easier installation.
