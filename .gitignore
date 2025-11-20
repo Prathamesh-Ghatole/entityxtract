@@ -12,7 +12,6 @@ wheels/
 
 config.yml
 .env
-.env.*
 
 # Logs
 logs/
