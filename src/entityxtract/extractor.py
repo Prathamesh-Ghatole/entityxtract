@@ -147,6 +147,29 @@ def _parse_token_usage(
     return input_tokens, output_tokens, resp_meta, usage_meta
 
 
+def _extract_cost_from_metadata(
+    response_dict: Optional[Dict[str, Any]],
+    resp_meta: Dict[str, Any],
+) -> Optional[float]:
+    """Prefer inline provider-reported cost when available.
+
+    OpenRouter currently includes cost in response metadata token_usage.cost for
+    many requests, which is more reliable than a follow-up generation lookup.
+    """
+    for source in (resp_meta, response_dict):
+        if not isinstance(source, dict):
+            continue
+        tu = source.get("token_usage")
+        if isinstance(tu, dict) and tu.get("cost") is not None:
+            return tu["cost"]
+        rm = source.get("response_metadata")
+        if isinstance(rm, dict):
+            tu = rm.get("token_usage")
+            if isinstance(tu, dict) and tu.get("cost") is not None:
+                return tu["cost"]
+    return None
+
+
 def _clean_response_content(response: Any) -> str:
     content = getattr(response, "content", "")
     if not isinstance(content, str):
@@ -174,7 +197,7 @@ def _fetch_generation_cost(
                 import requests as _requests
 
                 # Retry a few times in case the generation record isn't immediately available
-                delays = [0.5, 1.0, 2.0]
+                delays = [0.5, 1.0, 2.0, 4.0]
                 last_status = None
                 last_text = ""
                 for attempt, delay in enumerate(delays, start=1):
@@ -203,12 +226,12 @@ def _fetch_generation_cost(
                         continue
                     # Non-retryable or final attempt
                     logger.warning(
-                        f"Generation stats request failed: {resp.status_code} {resp.text[:200]}"
+                        f"Generation stats request failed for id={generation_id}: {resp.status_code} {resp.text[:200]}"
                     )
                     break
                 else:
                     logger.warning(
-                        f"Generation stats request failed: {last_status} {last_text}"
+                        f"Generation stats request failed for id={generation_id}: {last_status} {last_text}"
                     )
             except ImportError as ie:
                 logger.warning(
@@ -273,7 +296,12 @@ def extract_object(
                 response, response_dict
             )
 
-            cost, generation_stats = _fetch_generation_cost(config, resp_meta)
+            inline_cost = _extract_cost_from_metadata(response_dict, resp_meta)
+            if inline_cost is not None:
+                logger.debug(f"Using inline response cost from metadata: {inline_cost}")
+                cost, generation_stats = inline_cost, None
+            else:
+                cost, generation_stats = _fetch_generation_cost(config, resp_meta)
 
             content_str = _clean_response_content(response)
 
@@ -390,16 +418,16 @@ def extract_objects(
         success=overall_success,
         message=None if overall_success else "Some extractions failed",
         total_input_tokens=sum(
-            (res.input_tokens or None)
+            (res.input_tokens or 0)
             for res in results.values()
             if res.input_tokens is not None
         ),
         total_output_tokens=sum(
-            (res.output_tokens or None)
+            (res.output_tokens or 0)
             for res in results.values()
             if res.output_tokens is not None
         ),
-        total_cost=sum(
-            (res.cost or None) for res in results.values() if res.cost is not None
+        total_cost=(
+            sum(costs) if (costs := [r.cost for r in results.values() if r.cost is not None]) else None
         ),
     )
