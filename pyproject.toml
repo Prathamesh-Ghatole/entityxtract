@@ -6,7 +6,18 @@ readme = "README.md"
 authors = [
     { name = "Prathamesh-Ghatole", email = "prathamesh.s.ghatole@gmail.com" }
 ]
+license = {text = "MIT"}
 requires-python = ">=3.12"
+keywords = ["llm", "extraction", "pdf", "document", "entity", "ai", "nlp", "structured-data"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "fastapi[standard]>=0.116.1",
     "langchain>=0.3.27",
@@ -19,6 +30,11 @@ dependencies = [
     "requests>=2.32.5",
     "xlsxwriter>=3.2.5",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Prathamesh-Ghatole/entityxtract"
+Repository = "https://github.com/Prathamesh-Ghatole/entityxtract"
+Issues = "https://github.com/Prathamesh-Ghatole/entityxtract/issues"
 
 [project.scripts]
 llm-extractor = "entityxtract:main"

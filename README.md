@@ -31,6 +31,7 @@ Built as an **open-source alternative** to Google Cloud Document AI, Azure AI Do
 * 🌐 **Provider-agnostic design** — Works with any LLM via OpenAI-compatible APIs.
 * 🔄 **Robust execution** — Built-in retries, parallel extraction, strictly structured and typed output.
 * 📊 **Observability** — Structured logs, token usage tracking, and optional cost tracking.
+* 📦 **PyPI Package** — Easily install and use entityxtract in your projects.
 
 ### Coming Soon
 
@@ -40,7 +41,6 @@ Built as an **open-source alternative** to Google Cloud Document AI, Azure AI Do
 * 💰 **Cost Optimization** using PDF annotation caching, and smart input data pruning.
 * 👁️ **Deepseek OCR** integration for enhanced document processing.
 * 🔌 **MCP server** for agentic applications.
-* 📦 **PyPI publishing** for easier installation.
 
 ## Installation
 
