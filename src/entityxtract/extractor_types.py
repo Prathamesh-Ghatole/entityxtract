@@ -113,6 +113,14 @@ class DocType(Enum):
 class Document:
     """
     An object that holds a specific type of document and it's relevant data.
+
+    Can be constructed in two ways:
+        1. From a file path:
+            Document("path/to/file.pdf")
+
+        2. From raw bytes (file_type is required):
+            Document(file_bytes=pdf_bytes, file_type="pdf")
+            Document(file_bytes=pdf_bytes, file_type=DocType.PDF)
     """
 
     _binary: bytes = b""
@@ -121,7 +129,36 @@ class Document:
     _file_path: Path = Path("")
     _file_type: Optional[DocType] = None
 
-    def __init__(self, file_path: str | Path):
+    def __init__(
+        self,
+        file_path: Optional[Union[str, Path]] = None,
+        *,
+        file_bytes: Optional[bytes] = None,
+        file_type: Optional[Union[str, DocType]] = None,
+    ):
+        # --- Validate that exactly one input source is provided ---
+        if file_path is not None and file_bytes is not None:
+            msg = "Provide either 'file_path' or 'file_bytes', not both."
+            logger.error(msg)
+            raise ValueError(msg)
+
+        if file_path is None and file_bytes is None:
+            msg = "Must provide either 'file_path' or 'file_bytes'."
+            logger.error(msg)
+            raise ValueError(msg)
+
+        # --- Bytes mode ---
+        if file_bytes is not None:
+            if file_type is None:
+                msg = "'file_type' is required when using 'file_bytes'."
+                logger.error(msg)
+                raise ValueError(msg)
+
+            self._binary = file_bytes
+            self._file_type = self._resolve_file_type(file_type)
+            return
+
+        # --- File path mode (existing behaviour) ---
         self._file_path = Path(file_path)
 
         # validate file
@@ -135,21 +172,42 @@ class Document:
             logger.error(msg)
             raise ValueError(msg)
 
-        # determine file type
-        ext = self._file_path.suffix.lower().replace(".", "")
-        for dtype in DocType:
-            if ext in dtype.value:
-                self._file_type = dtype
-                break
+        # determine file type from extension (or use explicit override)
+        if file_type is not None:
+            self._file_type = self._resolve_file_type(file_type)
+        else:
+            ext = self._file_path.suffix.lower().replace(".", "")
+            for dtype in DocType:
+                if ext in dtype.value:
+                    self._file_type = dtype
+                    break
 
         if not self._file_type:
+            ext = self._file_path.suffix.lower().replace(".", "")
             msg = f"Unsupported file type: {ext}"
             logger.error(msg)
             raise ValueError(msg)
 
         # load file into memory as bytes
-        with open(file_path, "rb") as f:
+        with open(self._file_path, "rb") as f:
             self._binary = f.read()
+
+    # --- Internal helpers ---
+
+    @staticmethod
+    def _resolve_file_type(file_type: Union[str, DocType]) -> DocType:
+        """Resolve a string extension or DocType enum into a DocType."""
+        if isinstance(file_type, DocType):
+            return file_type
+
+        ext = file_type.lower().replace(".", "")
+        for dtype in DocType:
+            if ext in dtype.value:
+                return dtype
+
+        msg = f"Unsupported file type: {ext}"
+        logger.error(msg)
+        raise ValueError(msg)
 
     @property
     def file_path(self) -> Path:
