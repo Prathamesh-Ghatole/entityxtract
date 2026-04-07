@@ -4,21 +4,27 @@ Gets configurations from .env file or environment variables.
 
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from typing import Any, Optional
 from entityxtract.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-DOTENV_PATH = Path(__file__).parent.parent.parent / ".env"
-if not DOTENV_PATH.exists():
-    logger.info(
-        f"'.env' file not found at {DOTENV_PATH}. Skipping loading environment variables from .env file."
-    )
-else:
-    logger.info(f"Loading environment variables from {DOTENV_PATH}")
+# Try to find .env file:
+# 1. First check the source-tree relative path (for development)
+# 2. Fall back to find_dotenv() which searches CWD and parent directories (for installed package)
+_SOURCE_DOTENV = Path(__file__).parent.parent.parent / ".env"
 
-load_dotenv(dotenv_path=DOTENV_PATH, override=True)
+if _SOURCE_DOTENV.exists():
+    logger.info(f"Loading environment variables from {_SOURCE_DOTENV}")
+    load_dotenv(dotenv_path=_SOURCE_DOTENV, override=True)
+else:
+    _found = find_dotenv(usecwd=True)
+    if _found:
+        logger.info(f"Loading environment variables from {_found}")
+        load_dotenv(dotenv_path=_found, override=True)
+    else:
+        logger.info("No .env file found. Using environment variables as-is.")
 
 
 def get_config(key: str) -> Optional[Any]:

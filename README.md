@@ -1,9 +1,3 @@
-<!-- <p align="center">
-  <a href="https://github.com/Prathamesh-Ghatole/entityxtract">
-    <img loading="lazy" alt="entityxtract" src="https://github.com/Prathamesh-Ghatole/entityxtract/raw/main/docs/assets/logo.png" width="50%"/>
-  </a>
-</p> -->
-
 # entityxtract
 
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
@@ -18,7 +12,7 @@ Built as an **open-source alternative** to Google Cloud Document AI, Azure AI Do
 
 <p align="center">
   <a href="https://github.com/Prathamesh-Ghatole/entityxtract">
-    <img loading="lazy" alt="entityxtract" src="https://github.com/Prathamesh-Ghatole/entityxtract/raw/main/docs/assets/entityxtract_flow.png" width="100%"/>
+    <img alt="entityxtract" src="https://raw.githubusercontent.com/Prathamesh-Ghatole/entityxtract/main/docs/assets/entityxtract_flow.png" width="100%"/>
   </a>
 </p>
 
