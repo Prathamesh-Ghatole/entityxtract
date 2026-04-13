@@ -102,17 +102,14 @@ def main():
         calculate_costs=True,
     )
 
-    objects_to_extract = et.ObjectsToExtract(
-        objects=[
-            TABLE_AUTHORS,
-            TABLE_BENCHMARKS,
-        ],
-        config=config_file_input,
-    )
+    objects_to_extract = [
+        TABLE_AUTHORS,
+        TABLE_BENCHMARKS,
+    ]
 
     logger.info(f"\nUsing extraction config: {config_file_input}")
 
-    result = extract_objects(doc, objects_to_extract)
+    result = extract_objects(doc, objects_to_extract, config_file_input)
 
     if result.success:
         logger.info(

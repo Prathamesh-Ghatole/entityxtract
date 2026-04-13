@@ -1,6 +1,6 @@
 # Progress: entityxtract
 
-## What Works (v0.5.0)
+## What Works (v1.0.0)
 - ✅ Entity-first extraction via schema + few-shot examples + custom instructions (tables/records/strings)
 - ✅ Document abstraction supports multi-modal input: FILE, TEXT, IMAGE; PDFs converted to text/images
 - ✅ PDF page-range filtering via `Document(..., page_range=(start, end))` with in-memory PDF trimming
@@ -64,8 +64,8 @@
 - Cost optimization best practices
 - Migration guides for updates
 
-## Current Status (v0.5.0)
-- Repository: entityxtract at version 0.5.0
+## Current Status (v1.0.0)
+- Repository: entityxtract at version 1.0.0
 - Package path: src/entityxtract
 - Configuration: ✅ .env-based (migration complete)
 - Setup:
@@ -101,6 +101,12 @@
 
 ## Completed Milestones
 
+### v1.0.0
+- ✅ **Simplified `extract_objects()` API** — accepts plain `list[ExtractableObjectTypes]` + `ExtractionConfig` (decoupled)
+- ✅ **Deprecated `ObjectsToExtract`** — emits `DeprecationWarning`; to be removed in future release
+- ✅ Updated all call sites, tests, and README examples to new API
+- ✅ Created `CHANGELOG.md` with full version history
+
 ### v0.5.0
 - ✅ Configuration migration from YAML to .env complete
 - ✅ python-dotenv integration
@@ -132,10 +138,10 @@
 - Comprehensive observability (logs, tokens, costs)
 
 ### Roadmap Priority
-1. CLI implementation (v0.5.x)
-2. REST API (v0.6.0)
-3. Web UI + Advanced features (v0.7.0)
-4. Provider adapters + Optimization (v0.8.0+)
+1. CLI implementation (v1.x)
+2. REST API (v1.1.0)
+3. Web UI + Advanced features (v1.2.0)
+4. Provider adapters + Optimization (v1.3.0+)
 
 ## Next Steps (Immediate)
 1. Implement CLI `main()` function for command-line access

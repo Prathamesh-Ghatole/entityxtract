@@ -1,3 +1,5 @@
+import warnings
+
 from pydantic import BaseModel, ConfigDict, Field
 import polars as pl
 from typing import Union, List, Any, Optional
@@ -97,11 +99,23 @@ class ExtractionResults(BaseModel):
 
 class ObjectsToExtract(BaseModel):
     """
-    Pydantic model to declare a collection of objects to be extracted from a document.
+    .. deprecated::
+        `ObjectsToExtract` is deprecated and will be removed in a future release.
+        Pass a plain ``list[ExtractableObjectTypes]`` and an ``ExtractionConfig``
+        directly to :func:`extract_objects` instead.
     """
 
     objects: list[ExtractableObjectTypes]
     config: ExtractionConfig
+
+    def __init__(self, **data):
+        warnings.warn(
+            "ObjectsToExtract is deprecated. Pass a plain list of extractable objects "
+            "and an ExtractionConfig directly to extract_objects() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(**data)
 
 
 class DocType(Enum):

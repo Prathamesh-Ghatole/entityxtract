@@ -60,7 +60,7 @@ Extract pre-defined entities:
 from pathlib import Path
 import polars as pl
 from entityxtract.extractor_types import (
-    Document, TableToExtract, ObjectsToExtract, 
+    Document, TableToExtract,
     ExtractionConfig, FileInputMode
 )
 from entityxtract.extractor import extract_objects
@@ -87,7 +87,7 @@ config = ExtractionConfig(
 )
 
 # 4. Extract!
-results = extract_objects(doc, ObjectsToExtract(objects=[table], config=config))
+results = extract_objects(doc, [table], config)
 
 # Use your results
 for name, result in results.results.items():
@@ -121,7 +121,7 @@ import polars as pl
 
 from entityxtract.extractor_types import (
     Document, ExtractionConfig, FileInputMode,
-    TableToExtract, StringToExtract, ObjectsToExtract
+    TableToExtract, StringToExtract
 )
 from entityxtract.extractor import extract_objects
 
@@ -156,8 +156,7 @@ config = ExtractionConfig(
 )
 
 # Run extraction
-objects = ObjectsToExtract(objects=[table, report_id], config=config)
-results = extract_objects(doc, objects)
+results = extract_objects(doc, [table, report_id], config)
 
 # Process results
 for name, res in results.results.items():

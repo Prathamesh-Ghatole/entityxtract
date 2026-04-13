@@ -1,6 +1,6 @@
 [project]
 name = "entityxtract"
-version = "0.6.0"
+version = "1.0.0"
 description = "A provider-agnostic, entity-centric LLM-powered document entity extraction tool"
 readme = "README.md"
 authors = [

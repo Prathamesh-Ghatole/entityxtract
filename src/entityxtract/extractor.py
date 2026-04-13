@@ -374,27 +374,28 @@ def extract_object(
 
 def extract_objects(
     doc: extractor_types.Document,
-    objects_to_extract: extractor_types.ObjectsToExtract,
+    objects_to_extract: list[extractor_types.ExtractableObjectTypes],
+    config: extractor_types.ExtractionConfig,
 ) -> extractor_types.ExtractionResults:
     """
     Extract multiple objects from the document concurrently.
     Args:
         doc: Document object containing the data to extract from
-        objects_to_extract: ObjectsToExtract object containing the list of objects and config
+        objects_to_extract: List of extractable objects (e.g. TableToExtract, StringToExtract)
+        config: Configuration for the extraction process
     Returns:
         ExtractionResults object containing the results of the extractions
     """
 
-    # NOTE: use objects_to_extract.config.parallel_requests to set max_workers
-    max_workers = max(1, int(objects_to_extract.config.parallel_requests or 1))
+    max_workers = max(1, int(config.parallel_requests or 1))
 
     results: Dict[str, extractor_types.ExtractionResult] = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_name = {
             executor.submit(
-                extract_object, doc, obj, objects_to_extract.config
+                extract_object, doc, obj, config
             ): obj.name
-            for obj in objects_to_extract.objects
+            for obj in objects_to_extract
         }
 
         for future in concurrent.futures.as_completed(future_to_name):

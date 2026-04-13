@@ -7,6 +7,9 @@
 - Focus on implementing missing features and preparing for public release
 
 ## Recent Changes
+- **Deprecated `ObjectsToExtract`**: The wrapper class now emits a `DeprecationWarning`. Pass a plain `list[ExtractableObjectTypes]` and `ExtractionConfig` directly to `extract_objects()` instead.
+- **Simplified `extract_objects` API**: Decoupled extraction objects from config — function now takes `(doc, objects_list, config)`.
+- **Updated all call sites**: `tests/test.py` and `try_stormgeo/run.py` use the new pattern.
 - ✅ **Configuration migration complete**: Fully moved from YAML to `.env` files
   - `.env` and `.env.sample` files in place
   - config.py updated to read from environment variables only
