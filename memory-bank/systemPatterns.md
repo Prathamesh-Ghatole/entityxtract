@@ -10,17 +10,18 @@
   - logging_config.py — logging setup and shared logger accessors
 - Data Flow
   1) Load `Document` (PDF/TEXT/IMAGE). For PDFs, derive text and page images lazily
-  2) Build prompts from templates and entity definitions (schema + few-shots + instructions)
-  3) Compose a multimodal message (text, base64 images, and/or binary file) according to input modes
-  4) Invoke LLM, enforce JSON output, and clean/parse the response
-  5) Aggregate per-entity `ExtractionResult` objects into `ExtractionResults`
+-  2) Optionally trim PDF bytes in-memory during `Document` construction using `page_range`
+  3) Build prompts from templates and entity definitions (schema + few-shots + instructions)
+  4) Compose a multimodal message (text, base64 images, and/or binary file) according to input modes
+  5) Invoke LLM, enforce JSON output, and clean/parse the response
+  6) Aggregate per-entity `ExtractionResult` objects into `ExtractionResults`
 
 ## Key Domain Models (extractor_types.py)
 - FileInputMode — {FILE, TEXT, IMAGE} toggles context shape sent to the model
 - ExtractionConfig — model parameters, retries, parallelism, input modes, cost tracking toggle
 - TableToExtract, StringToExtract — entity definitions, including example structures and instructions
 - ObjectsToExtract — collection of entities + shared config for a job
-- Document — lazy loader for file bytes, derived text, and images, with type detection (PDF/IMAGE/TEXT)
+- Document — loader for file bytes, derived text, and images, with type detection (PDF/IMAGE/TEXT) and optional in-memory PDF page trimming
 - ExtractionResult(s) — structured outputs with metadata (success, message, tokens, cost)
 
 ## Prompting and Messages
@@ -108,6 +109,7 @@ OPENAI_MAX_TOKENS=4096
 - Hybrid strategies (annotate → extract workflow)
 - Document chunking for large files
 - Multi-page processing strategies
+- PDF page subsetting at document load time via in-memory trimming before FILE/TEXT/IMAGE conversion
 
 ### 3. Provider Adapters
 - Direct SDK integrations (OpenAI, Gemini, Claude native clients)

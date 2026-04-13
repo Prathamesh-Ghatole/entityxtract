@@ -7,7 +7,7 @@ from PIL import Image as PILImage
 from PIL.Image import Image as PILImageType
 from io import BytesIO
 
-from .pdf.extractor import pdf_to_text, pdf_to_image
+from .pdf.extractor import pdf_to_text, pdf_to_image, trim_pdf_pages
 from .config import get_config
 from entityxtract.logging_config import get_logger
 
@@ -121,6 +121,10 @@ class Document:
         2. From raw bytes (file_type is required):
             Document(file_bytes=pdf_bytes, file_type="pdf")
             Document(file_bytes=pdf_bytes, file_type=DocType.PDF)
+
+        3. With PDF page filtering:
+            Document("path/to/file.pdf", page_range=(0, 3))
+            Document(file_bytes=pdf_bytes, file_type="pdf", page_range=(0, 3))
     """
 
     _binary: bytes = b""
@@ -135,7 +139,19 @@ class Document:
         *,
         file_bytes: Optional[bytes] = None,
         file_type: Optional[Union[str, DocType]] = None,
+        page_range: Optional[tuple[int, int]] = None,
     ):
+        if page_range is not None:
+            start, end = page_range
+            if start < 0 or end < 0:
+                msg = "page_range values must be non-negative."
+                logger.error(msg)
+                raise ValueError(msg)
+            if start >= end:
+                msg = f"page_range start ({start}) must be < end ({end})."
+                logger.error(msg)
+                raise ValueError(msg)
+
         # --- Validate that exactly one input source is provided ---
         if file_path is not None and file_bytes is not None:
             msg = "Provide either 'file_path' or 'file_bytes', not both."
@@ -156,6 +172,7 @@ class Document:
 
             self._binary = file_bytes
             self._file_type = self._resolve_file_type(file_type)
+            self._apply_page_range(page_range)
             return
 
         # --- File path mode (existing behaviour) ---
@@ -192,6 +209,8 @@ class Document:
         with open(self._file_path, "rb") as f:
             self._binary = f.read()
 
+        self._apply_page_range(page_range)
+
     # --- Internal helpers ---
 
     @staticmethod
@@ -208,6 +227,19 @@ class Document:
         msg = f"Unsupported file type: {ext}"
         logger.error(msg)
         raise ValueError(msg)
+
+    def _apply_page_range(self, page_range: Optional[tuple[int, int]]) -> None:
+        """Trim PDF bytes to the specified page range if applicable."""
+        if page_range is None:
+            return
+
+        if self._file_type != DocType.PDF:
+            logger.warning(
+                f"page_range is only supported for PDF files; ignoring for {self._file_type}"
+            )
+            return
+
+        self._binary = trim_pdf_pages(self._binary, *page_range)
 
     @property
     def file_path(self) -> Path:

@@ -15,12 +15,16 @@
 - ✅ Memory Bank fully refreshed with accurate documentation
 - ✅ README comprehensively updated with usage examples and roadmap
 - python-dotenv added to dependencies for automatic .env loading
+- ✅ Added PDF page-range filtering at Document load time
+  - `Document(..., page_range=(start, end))` supports 0-indexed `(start, end)` tuples
+  - PDF bytes are trimmed once at document load time and stored in-memory
 
 ## Decisions
 - **Configuration**: ENV-only approach, no YAML support
 - **Provider-agnostic design**: Works with any OpenAI-compatible endpoint
 - **Model recommendation**: Gemini 2.5 Flash for best results
 - **Input modes**: FILE, TEXT, IMAGE - can be combined per job
+- **PDF page filtering**: Applied at `Document` load time via `page_range`, keeping extraction config focused on model/runtime behavior
 - **JSON enforcement**: Pure JSON outputs (no code fences) via response_format + post-cleaning
 - **Observability**: Structured logging, token usage tracking, optional cost tracking
 

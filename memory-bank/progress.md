@@ -3,6 +3,7 @@
 ## What Works (v0.5.0)
 - ✅ Entity-first extraction via schema + few-shot examples + custom instructions (tables/records/strings)
 - ✅ Document abstraction supports multi-modal input: FILE, TEXT, IMAGE; PDFs converted to text/images
+- ✅ PDF page-range filtering via `Document(..., page_range=(start, end))` with in-memory PDF trimming
 - ✅ Prompt assembly with system + entity-specific templates; enforced pure JSON responses
 - ✅ Robust execution:
   - Retries with exponential backoff

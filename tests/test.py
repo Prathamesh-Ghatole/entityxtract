@@ -86,7 +86,7 @@ def main():
     logger.info(f"Loading document from {SAMPLE_PDF_PATH}")
 
     start_time = time.time()
-    doc = Document(SAMPLE_PDF_PATH)
+    doc = Document(SAMPLE_PDF_PATH, page_range=(0, 8))
 
     logger.info(f"Loaded document text: {len(doc.text)} characters")
     logger.info(f"Loaded document text preview: \n{doc.text[:500]}...\n")
@@ -98,7 +98,7 @@ def main():
         file_input_modes=[
             et.FileInputMode.FILE,
         ],
-        parallel_requests=4,
+        parallel_requests=1,
         calculate_costs=True,
     )
 

@@ -428,6 +428,8 @@ def extract_objects(
             if res.output_tokens is not None
         ),
         total_cost=(
-            sum(costs) if (costs := [r.cost for r in results.values() if r.cost is not None]) else None
+            sum(costs)
+            if (costs := [r.cost for r in results.values() if r.cost is not None])
+            else None
         ),
     )

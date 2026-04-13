@@ -3,6 +3,7 @@ PDF extraction utilities for the dpr_parser module.
 """
 
 from pathlib import Path
+from io import BytesIO
 import pypdfium2 as pdfium
 from PIL import Image
 from typing import Dict, List, Union
@@ -10,6 +11,51 @@ from entityxtract.logging_config import get_logger
 
 # Module logger (configured by setup_logging() at app entry)
 logger = get_logger(__name__)
+
+
+def trim_pdf_pages(file: bytes, start: int, end: int) -> bytes:
+    """
+    Trim a PDF to only include pages in range [start, end) (0-indexed).
+
+    Args:
+        file: Bytes of the source PDF
+        start: Start page index (inclusive, 0-indexed)
+        end: End page index (exclusive, 0-indexed)
+
+    Returns:
+        A new PDF as bytes containing only the selected pages
+    """
+    try:
+        src = pdfium.PdfDocument(file, autoclose=True)
+        try:
+            page_count = len(src)
+
+            if start < 0 or end <= start:
+                raise ValueError(
+                    f"Invalid page range [{start}, {end}). Expected 0 <= start < end."
+                )
+            if end > page_count:
+                raise ValueError(
+                    f"Page range [{start}, {end}) exceeds PDF page count ({page_count})."
+                )
+
+            dst = pdfium.PdfDocument.new()
+            try:
+                dst.import_pages(src, pages=list(range(start, end)))
+                output = BytesIO()
+                dst.save(output)
+                trimmed = output.getvalue()
+                logger.debug(
+                    f"Trimmed PDF from {page_count} pages to {end - start} pages: [{start}, {end})"
+                )
+                return trimmed
+            finally:
+                dst.close()
+        finally:
+            src.close()
+    except Exception as e:
+        logger.error(f"Error trimming PDF pages: {str(e)}")
+        raise
 
 
 def get_pdf_page_count(file: bytes | Path | str) -> int:
