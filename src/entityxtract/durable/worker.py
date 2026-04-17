@@ -48,6 +48,7 @@ from .activities import (
     render_pdf_pages_activity,
     validate_extraction_activity,
 )
+from .agent import get_temporal_coordinator
 from .workflow import EntityExtractionWorkflow
 
 
@@ -72,7 +73,12 @@ async def run_worker(
 ) -> None:
     """Connect to Temporal and run the entityxtract worker."""
     coordinator_model = _prepare_openai_env()
+
+    coordinator = get_temporal_coordinator(coordinator_model)
+    EntityExtractionWorkflow.__pydantic_ai_agents__ = [coordinator]
+
     print(f"Coordinator model: {coordinator_model}")
+    print(f"Coordinator activities: {[a.__name__ for a in coordinator.temporal_activities]}")
 
     client = await Client.connect(
         target_host,
