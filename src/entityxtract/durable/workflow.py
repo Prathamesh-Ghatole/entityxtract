@@ -7,9 +7,10 @@ ones created by ``TemporalAgent``).
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import timedelta
-from typing import Any
+from typing import Any, Optional
 
 from temporalio import workflow
 
@@ -19,6 +20,7 @@ with workflow.unsafe.imports_passed_through():
         render_pdf_pages_activity,
     )
     from entityxtract.durable.types import (
+        ApprovalDecision,
         Deps,
         EntityProgress,
         EntityStatus,
@@ -35,11 +37,51 @@ class EntityExtractionWorkflow:
     on the Worker via the ``PydanticAIPlugin`` / ``__pydantic_ai_agents__``.
     Inside the workflow we call the agent by importing the cached
     singleton at run-time (inside the sandbox pass-through block above).
+
+    Signals:
+        approve_entity  — approve (optionally edit) an extracted entity
+        reject_entity   — reject an entity and provide a reason
+
+    Queries:
+        get_progress        — returns ``JobProgress`` snapshot
+        get_partial_results — returns completed extraction results so far
     """
 
     def __init__(self) -> None:
         self._progress = JobProgress()
         self._results: dict[str, Any] = {}
+        self._approval_decisions: dict[str, ApprovalDecision] = {}
+
+    # ----- Signals -----
+
+    @workflow.signal
+    async def approve_entity(self, entity_name: str, edited_data_json: Optional[str] = None) -> None:
+        edited = json.loads(edited_data_json) if edited_data_json else None
+        self._approval_decisions[entity_name] = ApprovalDecision(
+            entity_name=entity_name,
+            approved=True,
+            edited_data=edited,
+        )
+
+    @workflow.signal
+    async def reject_entity(self, entity_name: str, reason: str = "") -> None:
+        self._approval_decisions[entity_name] = ApprovalDecision(
+            entity_name=entity_name,
+            approved=False,
+            reason=reason,
+        )
+
+    # ----- Queries -----
+
+    @workflow.query
+    def get_progress(self) -> dict:
+        return self._progress.model_dump()
+
+    @workflow.query
+    def get_partial_results(self) -> dict[str, Any]:
+        return dict(self._results)
+
+    # ----- Main entry point -----
 
     @workflow.run
     async def run(self, request_json: str) -> str:
@@ -86,6 +128,9 @@ class EntityExtractionWorkflow:
             if ep:
                 ep.status = EntityStatus.COMPLETED if entity.name in self._results else EntityStatus.FAILED
 
+        if request.require_human_approval:
+            await self._wait_for_approvals(request)
+
         self._progress.completed_at = JobProgress.now_iso()
         return json.dumps(self._results)
 
@@ -123,3 +168,37 @@ class EntityExtractionWorkflow:
             "\nReturn a JSON object mapping entity names to their extraction results."
         )
         return "\n".join(parts)
+
+    async def _wait_for_approvals(self, request: ExtractionJobRequest) -> None:
+        """Block until every extracted entity has been approved or rejected."""
+        for entity in request.entities:
+            if entity.name not in self._results:
+                continue
+
+            ep = self._progress.entity_progress.get(entity.name)
+            if ep:
+                ep.status = EntityStatus.AWAITING_APPROVAL
+
+            try:
+                await workflow.wait_condition(
+                    lambda name=entity.name: name in self._approval_decisions,
+                    timeout=timedelta(hours=24),
+                )
+            except asyncio.TimeoutError:
+                workflow.logger.warning(
+                    f"Approval timeout for {entity.name}, auto-approving"
+                )
+                self._approval_decisions[entity.name] = ApprovalDecision(
+                    entity_name=entity.name,
+                    approved=True,
+                    reason="Auto-approved after 24h timeout",
+                )
+
+            decision = self._approval_decisions[entity.name]
+            if decision.approved and decision.edited_data is not None:
+                self._results[entity.name] = decision.edited_data
+            elif not decision.approved:
+                del self._results[entity.name]
+                if ep:
+                    ep.status = EntityStatus.FAILED
+                    ep.last_error = f"Rejected: {decision.reason}"
