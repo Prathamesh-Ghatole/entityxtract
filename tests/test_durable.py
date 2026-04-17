@@ -1,7 +1,7 @@
 """Tests for the durable extraction pipeline.
 
-Currently only covers type serialization; activity + workflow tests
-land in follow-up commits.
+Covers type serialization and activity-level mocks.  Sandbox /
+workflow-validation tests land in a follow-up commit.
 """
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from temporalio import activity
 
 from entityxtract.durable.types import (
     DocumentRef,
@@ -17,7 +18,57 @@ from entityxtract.durable.types import (
     JobProgress,
     ValidationReport,
 )
-from entityxtract.extractor_types import ExtractionConfig, FileInputMode
+from entityxtract.extractor_types import ExtractionConfig, ExtractionResult, FileInputMode
+
+
+# ----- Mocked activities -----
+
+@activity.defn(name="load_document_activity")
+async def mock_load_document(doc_ref_json: str) -> str:
+    return "This is mock document text for testing purposes. Page 1 content here."
+
+
+@activity.defn(name="render_pdf_pages_activity")
+async def mock_render_pages(doc_ref_json: str) -> list[str]:
+    return ["base64encodedpage1=="]
+
+
+@activity.defn(name="extract_entity_activity")
+async def mock_extract_entity(payload_json: str) -> str:
+    payload = json.loads(payload_json)
+    entity_spec = payload["entity_spec"]
+    name = entity_spec["name"]
+
+    if entity_spec["kind"] == "table":
+        extracted = [
+            {"Name": "John Doe", "Organization": "Test University", "Email": "john@test.edu"},
+            {"Name": "Jane Smith", "Organization": "Research Lab", "Email": "jane@lab.org"},
+        ]
+    else:
+        extracted = f"Extracted string for {name}"
+
+    result = ExtractionResult(
+        extracted_data=extracted,
+        response_raw={"mock": True},
+        success=True,
+        message="Mock extraction successful",
+        input_tokens=100,
+        output_tokens=50,
+        cost=0.001,
+    )
+    return result.model_dump_json()
+
+
+@activity.defn(name="validate_extraction_activity")
+async def mock_validate_extraction(payload_json: str) -> str:
+    payload = json.loads(payload_json)
+    report = ValidationReport(
+        entity_name=payload["entity_name"],
+        is_valid=True,
+        issues=[],
+        suggestions=[],
+    )
+    return report.model_dump_json()
 
 
 # ----- Fixtures -----
@@ -97,3 +148,49 @@ class TestDurableTypes:
         )
         assert not report.is_valid
         assert len(report.issues) == 1
+
+
+class TestActivities:
+    """Test activity functions in isolation."""
+
+    @pytest.mark.asyncio
+    async def test_mock_load_document(self):
+        result = await mock_load_document('{"uri": "file:///test.pdf", "doc_type": "pdf"}')
+        assert "mock document text" in result
+
+    @pytest.mark.asyncio
+    async def test_mock_extract_entity(self):
+        payload = {
+            "doc_ref": {"uri": "file:///test.pdf", "doc_type": "pdf"},
+            "entity_spec": {
+                "name": "Authors",
+                "kind": "table",
+                "example_schema": '[{"Name": "ex"}]',
+                "instructions": "Extract authors",
+                "required": True,
+            },
+            "config": {"model_name": "test", "temperature": 0.0},
+        }
+        result_json = await mock_extract_entity(json.dumps(payload))
+        result = ExtractionResult.model_validate_json(result_json)
+        assert result.success
+        assert isinstance(result.extracted_data, list)
+        assert len(result.extracted_data) == 2
+
+    @pytest.mark.asyncio
+    async def test_mock_validate_extraction(self):
+        payload = {
+            "entity_name": "Authors",
+            "extracted_data": [{"Name": "John"}],
+            "entity_spec": {
+                "name": "Authors",
+                "kind": "table",
+                "example_schema": '[{"Name": "ex"}]',
+                "instructions": "test",
+                "required": True,
+            },
+        }
+        result_json = await mock_validate_extraction(json.dumps(payload))
+        report = ValidationReport.model_validate_json(result_json)
+        assert report.is_valid
+        assert report.entity_name == "Authors"
