@@ -27,7 +27,10 @@ Built as an **open-source alternative** to Google Cloud Document AI, Azure AI Do
 * 📊 **Observability** — Structured logs, token usage tracking, and optional cost tracking.
 * 📦 **PyPI Package** — Easily install and use entityxtract in your projects.
 
-### Coming Soon
+<details>
+<summary><b>▶ Coming Soon — click to expand upcoming features</b></summary>
+
+<br>
 
 * 🌐 **FastAPI REST API** for remote extraction services.
 * 🖥️ **Web UI** for visual entity/schema management and job monitoring.
@@ -36,7 +39,14 @@ Built as an **open-source alternative** to Google Cloud Document AI, Azure AI Do
 * 👁️ **Deepseek OCR** integration for enhanced document processing.
 * 🔌 **MCP server** for agentic applications.
 
+</details>
+
 ## Installation
+
+<details>
+<summary><b>▶ Click to expand — install with uv (recommended)</b></summary>
+
+<br>
 
 To use entityxtract, you'll need Python 3.12+ and [uv](https://docs.astral.sh/uv/) (recommended):
 
@@ -52,7 +62,14 @@ cd entityxtract
 uv sync
 ```
 
+</details>
+
 ## Getting Started
+
+<details open>
+<summary><b>▼ Click to collapse — extract pre-defined entities in 4 steps</b></summary>
+
+<br>
 
 Extract pre-defined entities:
 
@@ -98,7 +115,14 @@ for name, result in results.results.items():
         print(f"Failed: {result.message}")
 ```
 
+</details>
+
 ## Configuration
+
+<details>
+<summary><b>▶ Click to expand — environment variables for any OpenAI-compatible endpoint</b></summary>
+
+<br>
 
 Copy the sample environment file `.env.sample` to `.env`, or set the following environment variables directly:
 
@@ -111,7 +135,14 @@ export OPENAI_API_BASE="https://openrouter.ai/api/v1"
 export OPENAI_DEFAULT_MODEL="google/gemini-2.5-flash"
 ```
 
+</details>
+
 ## Usage Examples
+
+<details>
+<summary><b>▶ Click to expand — multi-entity extraction, cost tracking, and input modes</b></summary>
+
+<br>
 
 ### Complete Example with Multiple Entities
 
@@ -206,6 +237,8 @@ config = ExtractionConfig(
 ```
 
 See `tests/test.py` for more complete examples.
+
+</details>
 
 ## Durable & Agentic Extraction (Temporal)
 
@@ -376,6 +409,11 @@ tests/test_durable.py              # Sandbox validation + type roundtrip tests
 
 ## Roadmap
 
+<details>
+<summary><b>▶ Click to expand — planned interfaces, DX, providers, and testing work</b></summary>
+
+<br>
+
 ### Interfaces
 - 🌐 FastAPI REST API for remote extraction services
 - 🖥️ Web UI for entity management, job runs, and results review
@@ -398,7 +436,14 @@ tests/test_durable.py              # Sandbox validation + type roundtrip tests
 - 📊 Benchmark suite for accuracy and performance
 - 📚 Comprehensive documentation site
 
+</details>
+
 ## Comparisons
+
+<details>
+<summary><b>▶ Click to expand — how entityxtract compares to commercial alternatives</b></summary>
+
+<br>
 
 entityxtract positions itself as a flexible, open-source alternative to both commercial services and closed-source solutions:
 
@@ -408,7 +453,14 @@ entityxtract positions itself as a flexible, open-source alternative to both com
 - **Schema + Examples**: Strong emphasis on structured entity definitions with few-shot learning
 - **Complete Stack**: Python SDK today, REST API and Web UI coming soon
 
+</details>
+
 ## Contributing
+
+<details>
+<summary><b>▶ Click to expand — dev setup, test commands, and contribution guidelines</b></summary>
+
+<br>
 
 We welcome contributions! entityxtract uses modern Python tooling:
 
@@ -431,6 +483,8 @@ uv run ruff format .
 - Use structured logging patterns
 
 Open an issue or PR with a clear description and we'll be happy to review!
+
+</details>
 
 ## Get Help and Support
 
