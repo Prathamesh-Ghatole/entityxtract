@@ -6,9 +6,9 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License MIT](https://img.shields.io/github/license/Prathamesh-Ghatole/entityxtract)](https://opensource.org/licenses/MIT)
 
-**Entity-first, schema-driven extraction of structured data from unstructured documents** (PDF, DOCX, TXT, images). Define custom entities with schemas, few-shot examples, and instructions, then extract reliably using any local or SOTA LLM.
+**entityxtract simplifies robust, agentic, schema-driven extraction of structured data from unstructured documents**. Define custom entities with schemas, few-shot examples, and instructions, then extract reliably using any local or SOTA LLM.
 
-Built as an **open-source alternative** to Google Cloud Document AI, Azure AI Document Intelligence, and Adobe PDF Extract — but provider-agnostic and designed to work with any LLM.
+Built as an **open-source alternative** to Google Cloud Document AI, Azure AI Document Intelligence, and AWS Textract — but even more accurate, provider-agnostic and BYOK by design.
 
 <p align="center">
   <a href="https://github.com/Prathamesh-Ghatole/entityxtract">
