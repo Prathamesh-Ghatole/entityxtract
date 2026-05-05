@@ -8,6 +8,12 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from . import extractor_types
+from .cache import (
+    enforce_cache_size_limit,
+    get_hit_threshold_s,
+    is_cache_enabled,
+    setup_cache,
+)
 from .config import get_config
 from .prompts import get_prompt, get_system_prompt
 from entityxtract.logging_config import get_logger
@@ -59,6 +65,8 @@ def pil_img_to_base64(img) -> str:
 
 
 def _build_model(config: extractor_types.ExtractionConfig) -> ChatOpenAI:
+    # Ensure LangChain's global LLM cache is configured (idempotent).
+    setup_cache()
     model_kwargs = {"response_format": {"type": "json_object"}}
     return ChatOpenAI(
         openai_api_key=get_config("OPENAI_API_KEY"),
@@ -285,7 +293,22 @@ def extract_object(
 
     for attempt in range(1, max_retries + 1):
         try:
+            # Enforce cache size limit before each call (no-op if caching disabled)
+            enforce_cache_size_limit()
+
+            # Time the invoke so we can detect cache hits (hits return much
+            # faster than real network calls). On a hit we treat cost as 0
+            # and skip any follow-up generation-stats API lookup.
+            t0 = time.perf_counter()
             response = model.invoke(messages)
+            elapsed_s = time.perf_counter() - t0
+            cache_hit = is_cache_enabled() and elapsed_s < get_hit_threshold_s()
+            if cache_hit:
+                logger.info(
+                    f"LLM cache HIT for '{object_to_extract.name}' "
+                    f"(elapsed={elapsed_s * 1000:.1f}ms); cost will be reported as 0."
+                )
+
             # Serialize response to dict for complete metadata (incl. generation id)
             try:
                 response_dict = response.dict()
@@ -296,12 +319,19 @@ def extract_object(
                 response, response_dict
             )
 
-            inline_cost = _extract_cost_from_metadata(response_dict, resp_meta)
-            if inline_cost is not None:
-                logger.debug(f"Using inline response cost from metadata: {inline_cost}")
-                cost, generation_stats = inline_cost, None
+            if cache_hit:
+                # Cached response: no network charge, no need to look up
+                # generation stats on the provider.
+                cost, generation_stats = 0.0, None
             else:
-                cost, generation_stats = _fetch_generation_cost(config, resp_meta)
+                inline_cost = _extract_cost_from_metadata(response_dict, resp_meta)
+                if inline_cost is not None:
+                    logger.debug(
+                        f"Using inline response cost from metadata: {inline_cost}"
+                    )
+                    cost, generation_stats = inline_cost, None
+                else:
+                    cost, generation_stats = _fetch_generation_cost(config, resp_meta)
 
             content_str = _clean_response_content(response)
 

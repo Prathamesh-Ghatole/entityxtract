@@ -16,5 +16,8 @@ config.yml
 # Logs
 logs/
 
+# LLM response cache
+.cache/
+
 # Misc
 .DS_Store

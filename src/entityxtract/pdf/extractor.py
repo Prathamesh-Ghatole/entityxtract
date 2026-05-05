@@ -2,6 +2,7 @@
 PDF extraction utilities for the dpr_parser module.
 """
 
+import re
 from pathlib import Path
 from io import BytesIO
 import pypdfium2 as pdfium
@@ -11,6 +12,30 @@ from entityxtract.logging_config import get_logger
 
 # Module logger (configured by setup_logging() at app entry)
 logger = get_logger(__name__)
+
+# Regexes used to scrub non-deterministic metadata from PDF output so that
+# re-saving the same logical document produces byte-identical output (needed
+# for reliable exact-match LLM-response caching on PDF attachments).
+_PDF_CREATION_DATE_RE = re.compile(rb"/CreationDate\s*\(D:[^)]*\)")
+_PDF_MOD_DATE_RE = re.compile(rb"/ModDate\s*\(D:[^)]*\)")
+_PDF_ID_RE = re.compile(rb"/ID\s*\[\s*<[0-9A-Fa-f]+>\s*<[0-9A-Fa-f]+>\s*\]")
+
+
+def _strip_pdf_nondeterministic_metadata(pdf_bytes: bytes) -> bytes:
+    """Normalize volatile metadata fields so identical inputs → identical bytes.
+
+    pypdfium2 (and most PDF writers) stamp a fresh /CreationDate, /ModDate and
+    random /ID on every save(), which would otherwise change the base64 payload
+    sent to the LLM on every run and defeat response caching.
+    """
+    pdf_bytes = _PDF_CREATION_DATE_RE.sub(b"/CreationDate(D:00000000000000)", pdf_bytes)
+    pdf_bytes = _PDF_MOD_DATE_RE.sub(b"/ModDate(D:00000000000000)", pdf_bytes)
+    pdf_bytes = _PDF_ID_RE.sub(
+        b"/ID [<00000000000000000000000000000000><00000000000000000000000000000000>]",
+        pdf_bytes,
+    )
+    return pdf_bytes
+
 
 
 def trim_pdf_pages(file: bytes, start: int, end: int) -> bytes:
@@ -44,7 +69,7 @@ def trim_pdf_pages(file: bytes, start: int, end: int) -> bytes:
                 dst.import_pages(src, pages=list(range(start, end)))
                 output = BytesIO()
                 dst.save(output)
-                trimmed = output.getvalue()
+                trimmed = _strip_pdf_nondeterministic_metadata(output.getvalue())
                 logger.debug(
                     f"Trimmed PDF from {page_count} pages to {end - start} pages: [{start}, {end})"
                 )
