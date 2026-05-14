@@ -7,6 +7,15 @@
 - Focus on implementing missing features and preparing for public release
 
 ## Recent Changes
+- **v1.2.0 — Thread-safety hardening for PDFium**:
+  - Added a single process-wide `threading.RLock` (`_PDFIUM_LOCK`) in `src/entityxtract/pdf/extractor.py` that serialises every `pypdfium2` call (`trim_pdf_pages`, `get_pdf_page_count`, `pdf_to_text`, `pdf_to_image`) for the full lifecycle of the PDFium objects it creates. PDFium itself is not thread-safe; without this lock, concurrent callers (multi-threaded web servers, async workers) can segfault the interpreter.
+  - `Document.__init__` now **eagerly materialises** text and (by default) page images at construction time, so worker threads reading `.text` / `.image` never touch PDFium. New optional kwarg `render_images: bool = True` — pass `False` when you only need `FileInputMode.FILE` / `FileInputMode.TEXT` to skip the expensive render step; a later `.image` access will fall back to a lock-guarded lazy render.
+  - `Document` also uses a per-instance `_lazy_lock` with double-checked locking in the `.text` / `.image` properties for the fallback path, and moves previously class-level attribute defaults into `__init__` to eliminate accidental cross-instance state sharing.
+  - `.text` / `.image` fast paths now use explicit `_text_materialized` / `_image_materialized` flags instead of truthy-checks, so empty-but-valid results (scan-only PDF, empty text file, failed PIL decode) are cached rather than retried on every access. The flags are also pre-flipped for doc-type/content-type combinations with no work to do (e.g. `.image` on a TEXT doc), which keeps the lock off the hot path for every doc type.
+  - `render_images=False` now also applies to `DocType.IMAGE` files (previously PIL decode ran eagerly regardless); the lazy fallback in `.image` is exercised symmetrically for PDF and IMAGE.
+  - `pdf.close()` inside `pdf_to_image` no longer silently swallows exceptions — consistent with the other helpers and makes real bugs visible.
+  - Added `tests/test_thread_safety.py` — 12-test concurrency regression suite covering concurrent PDFium helpers, concurrent `Document` construction (path / bytes / `page_range` / `render_images=False`), concurrent reads against a shared `Document`, and the lazy-image race path. All pass.
+  - README now has a "Concurrency & Thread-Safety" section describing the contract.
 - **Deprecated `ObjectsToExtract`**: The wrapper class now emits a `DeprecationWarning`. Pass a plain `list[ExtractableObjectTypes]` and `ExtractionConfig` directly to `extract_objects()` instead.
 - **Simplified `extract_objects` API**: Decoupled extraction objects from config — function now takes `(doc, objects_list, config)`.
 - **Updated all call sites**: `tests/test.py` and `try_stormgeo/run.py` use the new pattern.

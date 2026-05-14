@@ -1,3 +1,4 @@
+import threading
 import warnings
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,6 +13,7 @@ from io import BytesIO
 from .pdf.extractor import pdf_to_text, pdf_to_image, trim_pdf_pages
 from .config import get_config
 from entityxtract.logging_config import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -139,13 +141,26 @@ class Document:
         3. With PDF page filtering:
             Document("path/to/file.pdf", page_range=(0, 3))
             Document(file_bytes=pdf_bytes, file_type="pdf", page_range=(0, 3))
-    """
 
-    _binary: bytes = b""
-    _text_data: str = ""
-    _image_data: Optional[Union[PILImageType, List[PILImageType]]] = None
-    _file_path: Path = Path("")
-    _file_type: Optional[DocType] = None
+    Thread-safety
+    -------------
+    A ``Document`` performs **all** PDFium / PIL work eagerly at construction
+    time (text extraction, page-image rendering, any page-range trimming).
+    After ``__init__`` returns, the instance holds only immutable bytes,
+    strings and already-rendered PIL images — no further PDFium calls are
+    made when you read ``.binary`` / ``.text`` / ``.image``. That makes a
+    constructed ``Document`` safe to share across threads.
+
+    Parallel construction (e.g. multiple web-request handlers each building
+    their own ``Document``) is also safe: the underlying PDFium helpers
+    serialize themselves via a module-level lock (see
+    ``entityxtract.pdf.extractor._PDFIUM_LOCK``).
+
+    If you want to skip the (potentially expensive) image render step —
+    typical when using only ``FileInputMode.FILE`` or ``FileInputMode.TEXT``
+    — construct the document with ``render_images=False``. Image access
+    will then lazily render on first use (also thread-safely).
+    """
 
     def __init__(
         self,
@@ -154,7 +169,33 @@ class Document:
         file_bytes: Optional[bytes] = None,
         file_type: Optional[Union[str, DocType]] = None,
         page_range: Optional[tuple[int, int]] = None,
+        render_images: bool = True,
     ):
+        # Per-instance defaults (intentionally NOT class-level attributes, to
+        # avoid accidentally sharing mutable state across instances / threads).
+        self._binary: bytes = b""
+        self._text_data: str = ""
+        self._image_data: Optional[Union[PILImageType, List[PILImageType]]] = None
+        self._file_path: Path = Path("")
+        self._file_type: Optional[DocType] = None
+        # Explicit "already computed" flags for `.text` / `.image`. We use
+        # dedicated flags (instead of truthy-checking `_text_data` / `is not
+        # None` on `_image_data`) so that:
+        #   * genuinely empty results (e.g. a scan-only PDF with no embedded
+        #     text, or a failed PIL decode) are cached and NOT re-attempted
+        #     on every property access;
+        #   * doc-type/content-type combinations that simply don't apply
+        #     (e.g. `.image` on a TEXT doc, `.text` on an IMAGE doc) still
+        #     hit the fast path instead of taking the lock forever.
+        # Invariant: these flags only ever transition False -> True.
+        self._text_materialized: bool = False
+        self._image_materialized: bool = False
+        # Guards the (rare) lazy fallback path in `.text` / `.image` when a
+        # caller opts out of eager materialisation via render_images=False.
+        # After eager load completes, these properties become simple getters
+        # and this lock is not touched on the hot path.
+        self._lazy_lock = threading.Lock()
+
         if page_range is not None:
             start, end = page_range
             if start < 0 or end < 0:
@@ -187,6 +228,7 @@ class Document:
             self._binary = file_bytes
             self._file_type = self._resolve_file_type(file_type)
             self._apply_page_range(page_range)
+            self._eager_materialize(render_images=render_images)
             return
 
         # --- File path mode (existing behaviour) ---
@@ -224,6 +266,7 @@ class Document:
             self._binary = f.read()
 
         self._apply_page_range(page_range)
+        self._eager_materialize(render_images=render_images)
 
     # --- Internal helpers ---
 
@@ -255,6 +298,71 @@ class Document:
 
         self._binary = trim_pdf_pages(self._binary, *page_range)
 
+    def _eager_materialize(self, render_images: bool) -> None:
+        """Eagerly compute ``text`` and (optionally) ``image`` up-front.
+
+        This is the heart of the thread-safety story: we do every PDFium /
+        PIL call *here*, once, on the constructing thread (which holds the
+        module-level PDFium lock internally via the helpers). Any subsequent
+        access to ``.text`` or ``.image`` from other threads is then just a
+        pure-Python attribute read against immutable / read-only objects.
+
+        The ``_text_materialized`` / ``_image_materialized`` flags are set
+        once the corresponding work has run (successfully *or* with a
+        handled failure) — including for doc-type/content-type combinations
+        that have no work to do (e.g. there is no ``.image`` for a TEXT
+        document). This guarantees the fast path in the ``.text`` / ``.image``
+        properties is always hit after ``__init__`` returns, regardless of
+        the actual content or doc type.
+        """
+        try:
+            if self._file_type == DocType.PDF:
+                self._text_data = pdf_to_text(self._binary)
+                self._text_materialized = True
+                if render_images:
+                    self._image_data = pdf_to_image(self._binary)
+                    self._image_materialized = True
+                # else: leave _image_materialized=False so a later `.image`
+                # access lazily renders on demand under _lazy_lock.
+            elif self._file_type == DocType.TEXT:
+                try:
+                    self._text_data = self._binary.decode("utf-8", errors="ignore")
+                except Exception as e:
+                    logger.error(f"Failed to decode text file: {e}")
+                    self._text_data = ""
+                self._text_materialized = True
+                # TEXT documents have no image concept — mark `.image`
+                # materialized so the fast path returns None without ever
+                # taking the lock.
+                self._image_materialized = True
+            elif self._file_type == DocType.IMAGE:
+                if render_images:
+                    try:
+                        self._image_data = PILImage.open(
+                            BytesIO(self._binary)
+                        ).convert("RGB")
+                        # Force a full decode/load now so no lazy PIL work
+                        # remains to happen later on a reader thread.
+                        self._image_data.load()
+                    except Exception as e:
+                        logger.error(f"Failed to decode image file: {e}")
+                        self._image_data = None
+                    self._image_materialized = True
+                # else: leave _image_materialized=False so a later `.image`
+                # access lazily decodes on demand under _lazy_lock.
+                #
+                # IMAGE documents have no text concept — mark `.text`
+                # materialized so the fast path returns "" without ever
+                # taking the lock.
+                self._text_materialized = True
+        except Exception as e:
+            # We deliberately don't swallow this — constructing a Document
+            # whose content can't be materialised should fail loudly, so the
+            # caller learns at construction time rather than on first use
+            # inside a worker thread where it's harder to debug.
+            logger.error(f"Failed to eagerly materialise Document content: {e}")
+            raise
+
     @property
     def file_path(self) -> Path:
         return self._file_path
@@ -269,32 +377,61 @@ class Document:
 
     @property
     def text(self) -> str:
-        if self._text_data:
+        # Fast path: after __init__'s eager materialisation this is just a
+        # plain attribute read, safe from any number of reader threads.
+        # We check the explicit flag (not truthiness of _text_data) so that
+        # legitimately empty results — e.g. a scan-only PDF, an empty text
+        # file, or `.text` on an IMAGE document — do NOT re-enter the lock
+        # on every access.
+        if self._text_materialized:
             return self._text_data
 
-        if self._file_type == DocType.PDF:
-            self._text_data = pdf_to_text(self._binary)
-        elif self._file_type == DocType.TEXT:
-            try:
-                self._text_data = self._binary.decode("utf-8", errors="ignore")
-            except Exception as e:
-                logger.error(f"Failed to decode text file: {e}")
-                self._text_data = ""
-
-        return self._text_data
+        # Slow/fallback path: should only be reachable in unusual scenarios
+        # (e.g. an exception from `_eager_materialize` that the caller chose
+        # to handle). Compute under a lock with double-checked locking so
+        # the work runs at most once.
+        with self._lazy_lock:
+            if self._text_materialized:
+                return self._text_data
+            if self._file_type == DocType.PDF:
+                self._text_data = pdf_to_text(self._binary)
+            elif self._file_type == DocType.TEXT:
+                try:
+                    self._text_data = self._binary.decode("utf-8", errors="ignore")
+                except Exception as e:
+                    logger.error(f"Failed to decode text file: {e}")
+                    self._text_data = ""
+            self._text_materialized = True
+            return self._text_data
 
     @property
     def image(self) -> Optional[Union[PILImageType, List[PILImageType]]]:
-        if self._image_data is not None:
+        # Fast path: already-rendered images from __init__ (or an explicit
+        # "no image for this doc type" materialisation). Using the flag
+        # rather than `_image_data is not None` means we don't re-try a
+        # previously failed render on every access, and we don't lock on
+        # `.image` reads against TEXT documents.
+        if self._image_materialized:
             return self._image_data
 
-        if self._file_type == DocType.PDF:
-            self._image_data = pdf_to_image(self._binary)
-        elif self._file_type == DocType.IMAGE:
-            try:
-                self._image_data = PILImage.open(BytesIO(self._binary)).convert("RGB")
-            except Exception as e:
-                logger.error(f"Failed to decode image file: {e}")
-                self._image_data = None
+        # Slow/fallback path: the caller opted out of eager image
+        # materialisation via `render_images=False` and is now requesting
+        # `.image`. Render once under a lock; subsequent readers hit the
+        # fast path.
+        with self._lazy_lock:
+            if self._image_materialized:
+                return self._image_data
+            if self._file_type == DocType.PDF:
+                self._image_data = pdf_to_image(self._binary)
+            elif self._file_type == DocType.IMAGE:
+                try:
+                    self._image_data = PILImage.open(BytesIO(self._binary)).convert(
+                        "RGB"
+                    )
+                    self._image_data.load()
+                except Exception as e:
+                    logger.error(f"Failed to decode image file: {e}")
+                    self._image_data = None
+            self._image_materialized = True
+            return self._image_data
 
-        return self._image_data

@@ -15,6 +15,7 @@ logger = get_logger(__name__)
 SAMPLE_PDF_PATH = Path(__file__).parent / "data" / "attention-is-all-you-need.pdf"
 MODEL = "google/gemini-3.1-flash-lite-preview"
 TEMPERATURE = 0.3
+N_PARALLEL_REQUESTS = 5
 
 TABLE_AUTHORS = et.TableToExtract(
     name="Authors",
@@ -98,7 +99,7 @@ def main():
         file_input_modes=[
             et.FileInputMode.FILE,
         ],
-        parallel_requests=1,
+        parallel_requests=N_PARALLEL_REQUESTS,
         calculate_costs=True,
     )
 

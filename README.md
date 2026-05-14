@@ -207,6 +207,41 @@ config = ExtractionConfig(
 
 See `tests/test.py` for more complete examples.
 
+## Concurrency & Thread-Safety
+
+`entityxtract` is safe to use from multithreaded hosts (e.g. a FastAPI /
+Flask / Django app, a background-job worker pool, or anything else that
+handles multiple requests per process concurrently).
+
+A few things you should know:
+
+- **PDFium (the C library behind `pypdfium2`) is not thread-safe.** All
+  PDFium calls inside `entityxtract` are serialized internally via a
+  single process-wide lock (`entityxtract.pdf.extractor._PDFIUM_LOCK`),
+  so multiple threads constructing `Document`s in parallel — or calling
+  the lower-level helpers like `pdf_to_text` / `pdf_to_image` — will not
+  corrupt each other.
+- **`Document` is eager by default.** Constructing a `Document` does all
+  the PDFium and PIL work up front (text extraction and, for PDFs, page
+  rendering). Once `__init__` returns, the instance only holds plain
+  Python bytes / strings / already-rendered PIL images, so reading
+  `.binary`, `.text`, or `.image` from any number of threads is just a
+  fast attribute read — no locks, no PDFium.
+- **Opt out of image rendering if you don't need it.** If your
+  `ExtractionConfig` only uses `FileInputMode.FILE` or
+  `FileInputMode.TEXT`, pass `Document(..., render_images=False)` to
+  skip the (more expensive) page-image render at construction time. A
+  later `.image` access will render on demand behind a per-instance
+  lock, so that path is thread-safe too.
+- **`extract_objects` fans out entities across threads.** That's been
+  true since v0.5.0; with the guarantees above, it is safe for the
+  calling application to *also* be multi-threaded (e.g. many web
+  requests, each calling `extract_objects` with its own `Document`).
+- **If you want CPU-level parallelism on the PDF side**, run entityxtract
+  under a `ProcessPoolExecutor` / multiple gunicorn workers — each
+  process has its own PDFium state, and the LLM calls are I/O-bound so
+  you don't lose throughput.
+
 ## Roadmap
 
 ### Interfaces

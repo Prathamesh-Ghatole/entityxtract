@@ -1,8 +1,28 @@
 """
 PDF extraction utilities for the dpr_parser module.
+
+Thread-safety
+-------------
+PDFium (the C library behind ``pypdfium2``) is not thread-safe: concurrent
+calls into it from multiple Python threads can segfault or corrupt memory,
+even on different ``FPDF_DOCUMENT`` handles. ``pypdfium2`` itself does not
+wrap every FFI call in a lock.
+
+To make this module safe to use from multiple threads in a single process
+(e.g. a web server handling parallel requests, or any ``ThreadPoolExecutor``
+that builds / reads ``Document`` objects concurrently), every public helper
+below acquires a single module-level :data:`_PDFIUM_LOCK` for the entire
+lifecycle of the PDFium objects it creates (load → use → close). The lock
+is an ``RLock`` so helpers can call each other without deadlocking.
+
+This lock is only held during PDFium work (typically tens to hundreds of
+milliseconds per document). It is never held during LLM calls or other
+I/O, so it does not become a throughput bottleneck for the extraction
+pipeline as a whole.
 """
 
 import re
+import threading
 from pathlib import Path
 from io import BytesIO
 import pypdfium2 as pdfium
@@ -12,6 +32,19 @@ from entityxtract.logging_config import get_logger
 
 # Module logger (configured by setup_logging() at app entry)
 logger = get_logger(__name__)
+
+# Process-wide lock serializing all PDFium access. See module docstring.
+_PDFIUM_LOCK = threading.RLock()
+
+
+def pdfium_lock() -> "threading.RLock":
+    """Return the process-wide PDFium lock.
+
+    Exposed for advanced callers that want to perform their own ``pypdfium2``
+    work alongside this library and need to cooperate with the same lock.
+    """
+    return _PDFIUM_LOCK
+
 
 # Regexes used to scrub non-deterministic metadata from PDF output so that
 # re-saving the same logical document produces byte-identical output (needed
@@ -51,33 +84,34 @@ def trim_pdf_pages(file: bytes, start: int, end: int) -> bytes:
         A new PDF as bytes containing only the selected pages
     """
     try:
-        src = pdfium.PdfDocument(file, autoclose=True)
-        try:
-            page_count = len(src)
-
-            if start < 0 or end <= start:
-                raise ValueError(
-                    f"Invalid page range [{start}, {end}). Expected 0 <= start < end."
-                )
-            if end > page_count:
-                raise ValueError(
-                    f"Page range [{start}, {end}) exceeds PDF page count ({page_count})."
-                )
-
-            dst = pdfium.PdfDocument.new()
+        with _PDFIUM_LOCK:
+            src = pdfium.PdfDocument(file, autoclose=True)
             try:
-                dst.import_pages(src, pages=list(range(start, end)))
-                output = BytesIO()
-                dst.save(output)
-                trimmed = _strip_pdf_nondeterministic_metadata(output.getvalue())
-                logger.debug(
-                    f"Trimmed PDF from {page_count} pages to {end - start} pages: [{start}, {end})"
-                )
-                return trimmed
+                page_count = len(src)
+
+                if start < 0 or end <= start:
+                    raise ValueError(
+                        f"Invalid page range [{start}, {end}). Expected 0 <= start < end."
+                    )
+                if end > page_count:
+                    raise ValueError(
+                        f"Page range [{start}, {end}) exceeds PDF page count ({page_count})."
+                    )
+
+                dst = pdfium.PdfDocument.new()
+                try:
+                    dst.import_pages(src, pages=list(range(start, end)))
+                    output = BytesIO()
+                    dst.save(output)
+                    trimmed = _strip_pdf_nondeterministic_metadata(output.getvalue())
+                    logger.debug(
+                        f"Trimmed PDF from {page_count} pages to {end - start} pages: [{start}, {end})"
+                    )
+                    return trimmed
+                finally:
+                    dst.close()
             finally:
-                dst.close()
-        finally:
-            src.close()
+                src.close()
     except Exception as e:
         logger.error(f"Error trimming PDF pages: {str(e)}")
         raise
@@ -100,9 +134,12 @@ def get_pdf_page_count(file: bytes | Path | str) -> int:
             file = f.read()
 
     try:
-        doc = pdfium.PdfDocument(file, autoclose=True)
-        page_count = len(doc)
-        doc.close()
+        with _PDFIUM_LOCK:
+            doc = pdfium.PdfDocument(file, autoclose=True)
+            try:
+                page_count = len(doc)
+            finally:
+                doc.close()
         logger.debug(f"PDF has {page_count} pages")
         return page_count
 
@@ -128,21 +165,22 @@ def pdf_to_text(file: bytes | Path | str) -> str:
         with open(file, "rb") as f:
             file = f.read()
     try:
-        doc = pdfium.PdfDocument(file, autoclose=True)
-        doc_parsed: Dict[int, str] = {}
+        with _PDFIUM_LOCK:
+            doc = pdfium.PdfDocument(file, autoclose=True)
+            doc_parsed: Dict[int, str] = {}
 
-        try:
-            for page_number, page in enumerate(doc):
-                text_page = page.get_textpage()
-                content = text_page.get_text_bounded()
-                text_page.close()
-                page.close()
-                doc_parsed[page_number] = content
-                logger.debug(f"Extracted text from page {page_number + 1}")
-        finally:
-            doc.close()
+            try:
+                for page_number, page in enumerate(doc):
+                    text_page = page.get_textpage()
+                    content = text_page.get_text_bounded()
+                    text_page.close()
+                    page.close()
+                    doc_parsed[page_number] = content
+                    logger.debug(f"Extracted text from page {page_number + 1}")
+            finally:
+                doc.close()
 
-        # Format the extracted text with page markers
+        # Format the extracted text with page markers (pure-Python, no PDFium).
         full_text = ""
         for page_n, text in doc_parsed.items():
             full_text += f"========== page {page_n + 1} start ==========\n\n"
@@ -180,15 +218,26 @@ def pdf_to_image(
     )
 
     try:
-        # Load the PDF document
-        pdf = pdfium.PdfDocument(file, autoclose=True)
+        with _PDFIUM_LOCK:
+            # Load the PDF document
+            pdf = pdfium.PdfDocument(file, autoclose=True)
 
-        # Render each page as an image
-        images = []
-        for i in range(len(pdf)):
-            page_image = pdf[i].render(scale).to_pil()
-            images.append(page_image)
-            logger.debug(f"Rendered page {i + 1} as image")
+            # Render each page as an image. `.to_pil()` copies the rendered
+            # bitmap into an independent PIL image, so once rendering is
+            # finished the resulting images are safe to use without holding
+            # the PDFium lock.
+            images: List[Image.Image] = []
+            try:
+                for i in range(len(pdf)):
+                    page_image = pdf[i].render(scale).to_pil()
+                    images.append(page_image)
+                    logger.debug(f"Rendered page {i + 1} as image")
+            finally:
+                # Let exceptions from .close() propagate — consistent with the
+                # other helpers in this module. A failure here signals a real
+                # problem (e.g. double-close, corrupt PDFium state) that we
+                # want visible, not silently swallowed.
+                pdf.close()
 
         # Return list of images if not combining
         if not combine_pages:
